@@ -2,7 +2,6 @@
 Welcome to the n64tools documentation. This repository contains a collection of tools for manipulating Nintendo 64 ROMs.
 
 ## Tool Documentation
-- [bootinjector64](bootinjector64.md) - Custom MIPS assembly injection tool for boot code in ROMs.
 - [f3d](f3d.md) - Fast3D display list decoder
 - [mio0](mio0.md) - MIO0 compressor/decompressor
 - [mipsdisasm](mipsdisasm.md) - MIPS disassembler
