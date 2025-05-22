@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "libblast.h"
 #include "n64graphics.h"
 #include "utils.h"
+#include "argparse.h"
 
 #define F3D2OBJ_VERSION "0.1"
 
@@ -565,113 +567,105 @@ static int print_f3d(FILE *fout, unsigned int *dl_addr, arg_config *config) {
   return done;
 }
 
-static void print_usage(void) {
-  ERROR("Usage: f3d2obj [-0/-F FILE] [-d DIR] [-i NUM] [-s SCALE] [-v] [-x/y/z "
-        "OFF] SEG_ADDR...\n"
-        "\n"
-        "f3d2obj v" F3D2OBJ_VERSION
-        ": Fast3D display list to Wavefront .obj converter\n"
-        "\n"
-        "Optional arguments:\n"
-        " -0/-F FILE   load FILE into segment specified by flag (0 through F)\n"
-        " -b ROM       use Blast Corps mode specifying ROM to load textures\n"
-        " -d DIR       directory to output (default: SEGMENT_ADDR.model)\n"
-        " -i NUM       starting vertex index offset (default: %d)\n"
-        " -s SCALE     scale all values by this factor (float)\n"
-        " -v           verbose output\n"
-        " -x X         offset to add to all X values before scaling\n"
-        " -y Y         offset to add to all Y values before scaling\n"
-        " -z Z         offset to add to all Z values before scaling\n"
-        "\n"
-        "Input arguments:\n"
-        " SEG_ADDR     segment addresses to start decoding from\n",
-        default_config.v_idx_offset);
-  exit(1);
-}
-
 // parse command line arguments
-static void parse_arguments(int argc, char *argv[], arg_config *config) {
+static int parse_arguments(int argc, char *argv[], arg_config *config) {
+  arg_parser *parser;
+  int result = 0;
   int i;
   int seg;
-  if (argc < 2) {
-    print_usage();
-    exit(1);
+
+  // Initialize the argument parser
+  parser = argparse_init("f3d2obj", F3D2OBJ_VERSION, 
+                        "Fast3D display list to Wavefront .obj converter");
+  if (parser == NULL) {
+    ERROR("Error: Failed to initialize argument parser\n");
+    return -1;
   }
-  for (i = 1; i < argc; i++) {
-    if (argv[i][0] == '-') {
-      // assign segment files
-      if (argv[i][1] >= '0' && argv[i][1] <= '9') {
-        seg = argv[i][1] - '0';
-        if (++i >= argc) {
-          print_usage();
+
+  // Add standard flag arguments
+  argparse_add_flag(parser, 'b', "blast-corps", ARG_TYPE_STRING,
+                   "use Blast Corps mode specifying ROM to load textures",
+                   "ROM", &config->blast_corps_rom, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'd', "dir", ARG_TYPE_STRING,
+                   "directory to output (default: SEGMENT_ADDR.model)",
+                   "DIR", &config->out_dir, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'i', "index-offset", ARG_TYPE_INT,
+                   "starting vertex index offset",
+                   "NUM", &config->v_idx_offset, false, NULL, 0);
+  
+  argparse_add_flag(parser, 's', "scale", ARG_TYPE_FLOAT,
+                   "scale all values by this factor",
+                   "SCALE", &config->scale, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'v', "verbose", ARG_TYPE_NONE,
+                   "verbose output",
+                   NULL, &g_verbosity, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'x', "x-offset", ARG_TYPE_UINT,
+                   "offset to add to all X values before scaling",
+                   "X", &config->translate[0], false, NULL, 0);
+  
+  argparse_add_flag(parser, 'y', "y-offset", ARG_TYPE_UINT,
+                   "offset to add to all Y values before scaling",
+                   "Y", &config->translate[1], false, NULL, 0);
+  
+  argparse_add_flag(parser, 'z', "z-offset", ARG_TYPE_UINT,
+                   "offset to add to all Z values before scaling",
+                   "Z", &config->translate[2], false, NULL, 0);
+
+  // Parse arguments
+  result = argparse_parse(parser, argc, argv);
+  
+  // If parsing succeeds, handle segment files and segment addresses
+  if (result == 0) {
+    config->offset_count = 0;
+    
+    for (i = 1; i < argc; i++) {
+      if (argv[i][0] == '-') {
+        // Skip flags that have values
+        if (strcmp(argv[i], "-v") != 0 && 
+            argv[i][1] != '0' && // Not a segment flag
+            !(argv[i][1] >= '1' && argv[i][1] <= '9') && // Not a segment flag
+            !(argv[i][1] >= 'A' && argv[i][1] <= 'F')) { // Not a segment flag
+          i++;
+        } 
+        // Handle segment files
+        else if ((argv[i][1] >= '0' && argv[i][1] <= '9') ||
+                (argv[i][1] >= 'A' && argv[i][1] <= 'F')) {
+          if (argv[i][1] >= '0' && argv[i][1] <= '9') {
+            seg = argv[i][1] - '0';
+          } else {
+            seg = argv[i][1] - 'A' + 0xA;
+          }
+          
+          if (++i < argc) {
+            seg_files[seg] = argv[i];
+          } else {
+            ERROR("Error: Missing segment file for %s\n", argv[i-1]);
+            result = -1;
+            break;
+          }
         }
-        seg_files[seg] = argv[i];
-      } else if (argv[i][1] >= 'A' && argv[i][1] <= 'F') {
-        seg = argv[i][1] - 'A' + 0xA;
-        if (++i >= argc) {
-          print_usage();
-        }
-        seg_files[seg] = argv[i];
       } else {
-        switch (argv[i][1]) {
-        case 'b':
-          if (++i >= argc) {
-            print_usage();
-          }
-          config->blast_corps_rom = argv[i];
-          break;
-        case 'd':
-          if (++i >= argc) {
-            print_usage();
-          }
-          config->out_dir = argv[i];
-          break;
-        case 'i':
-          if (++i >= argc) {
-            print_usage();
-          }
-          config->v_idx_offset = strtoul(argv[i], NULL, 0);
-          break;
-        case 's':
-          if (++i >= argc) {
-            print_usage();
-          }
-          config->scale = strtof(argv[i], NULL);
-          break;
-        case 'v':
-          g_verbosity = 1;
-          break;
-        case 'x':
-          if (++i >= argc) {
-            print_usage();
-          }
-          config->translate[0] = strtoul(argv[i], NULL, 0);
-          break;
-        case 'y':
-          if (++i >= argc) {
-            print_usage();
-          }
-          config->translate[1] = strtoul(argv[i], NULL, 0);
-          break;
-        case 'z':
-          if (++i >= argc) {
-            print_usage();
-          }
-          config->translate[2] = strtoul(argv[i], NULL, 0);
-          break;
-        default:
-          print_usage();
-          break;
-        }
+        // Handle segment addresses (positional args)
+        config->offsets[config->offset_count] = strtoul(argv[i], NULL, 0);
+        config->offset_count++;
       }
-    } else {
-      config->offsets[config->offset_count] = strtoul(argv[i], NULL, 0);
-      config->offset_count++;
+    }
+    
+    // Ensure we have at least one segment address
+    if (config->offset_count < 1) {
+      ERROR("Error: No segment addresses provided\n");
+      result = -1;
     }
   }
-  if (config->offset_count < 1) {
-    print_usage();
-  }
+  
+  // Free the parser
+  argparse_free(parser);
+  
+  return result;
 }
 
 int main(int argc, char *argv[]) {
@@ -686,9 +680,13 @@ int main(int argc, char *argv[]) {
   unsigned s;
   unsigned int seg_addr;
 
-  // get configuration from arguments
+  // Initialize configuration with defaults
   config = default_config;
-  parse_arguments(argc, argv, &config);
+  
+  // Parse command line arguments
+  if (parse_arguments(argc, argv, &config) != 0) {
+    return EXIT_FAILURE;
+  }
 
   // make basedir
   if (config.out_dir == NULL) {

@@ -1,4 +1,5 @@
 #include "n64split.h"
+#include "argparse.h"
 
 // static files
 #include "n64split.collision.mtl.h"
@@ -1217,70 +1218,74 @@ void print_version(void) {
 }
 
 // parse command line arguments
-void parse_arguments(int argc, char *argv[], arg_config *config) {
-  int i;
-  int file_count = 0;
-  if (argc < 2) {
-    print_usage();
-    exit(1);
+int parse_arguments(int argc, char *argv[], arg_config *config) {
+  arg_parser *parser;
+  int result;
+
+  // Initialize the argument parser
+  parser = argparse_init("n64split", N64SPLIT_VERSION, 
+                        "N64 ROM splitter, resource ripper, disassembler");
+  if (parser == NULL) {
+    ERROR("Error: Failed to initialize argument parser\n");
+    return -1;
   }
-  for (i = 1; i < argc; i++) {
-    if (argv[i][0] == '-') {
-      switch (argv[i][1]) {
-      case 'c':
-        if (++i >= argc) {
-          print_usage();
-        }
-        strcpy(config->config_file, argv[i]);
-        break;
-      case 'k':
-        config->keep_going = true;
-        break;
-      case 'm':
-        config->merge_pseudo = true;
-        break;
-      case 'o':
-        if (++i >= argc) {
-          print_usage();
-        }
-        strcpy(config->output_dir, argv[i]);
-        break;
-      case 'r':
-        config->raw_texture = true;
-        break;
-      case 's':
-        if (++i >= argc) {
-          print_usage();
-        }
-        config->model_scale = strtof(argv[i], NULL);
-        break;
-      case 't':
-        config->large_texture = true;
-        break;
-      case 'v':
-        g_verbosity = 1;
-        break;
-      case 'V':
-        print_version();
-        exit(0);
-        break;
-      default:
-        print_usage();
-        break;
-      }
-    } else {
-      if (file_count == 0) {
-        strcpy(config->input_file, argv[i]);
-      } else {
-        // too many
-        print_usage();
-      }
-      file_count++;
-    }
+
+  // Add flag arguments
+  argparse_add_flag(parser, 'c', "config", ARG_TYPE_STRING,
+                   "ROM configuration file (default: determine from checksum)",
+                   "CONFIG", config->config_file, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'k', "keep-going", ARG_TYPE_NONE,
+                   "keep going as much as possible after error",
+                   NULL, &config->keep_going, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'm', "merge-pseudo", ARG_TYPE_NONE,
+                   "merge related instructions in to pseudoinstructions",
+                   NULL, &config->merge_pseudo, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'o', "output-dir", ARG_TYPE_STRING,
+                   "output directory (default: {CONFIG.basename}.split)",
+                   "OUTPUT_DIR", config->output_dir, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'r', "raw-texture", ARG_TYPE_NONE,
+                   "output raw texture binaries",
+                   NULL, &config->raw_texture, false, NULL, 0);
+  
+  argparse_add_flag(parser, 's', "scale", ARG_TYPE_FLOAT,
+                   "amount to scale models by",
+                   "SCALE", &config->model_scale, false, NULL, 0);
+  
+  argparse_add_flag(parser, 't', "large-texture", ARG_TYPE_NONE,
+                   "generate large texture for MIO0 blocks",
+                   NULL, &config->large_texture, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'v', "verbose", ARG_TYPE_NONE,
+                   "verbose progress output",
+                   NULL, &g_verbosity, false, NULL, 0);
+
+  // Add a special version flag
+  bool print_version_flag = false;
+  argparse_add_flag(parser, 'V', "version", ARG_TYPE_NONE,
+                   "print version information",
+                   NULL, &print_version_flag, false, NULL, 0);
+
+  // Add positional arguments
+  argparse_add_positional(parser, "ROM", "input ROM file", 
+                         ARG_TYPE_STRING, config->input_file, true);
+
+  // Parse the arguments
+  result = argparse_parse(parser, argc, argv);
+  
+  // Handle version flag specially
+  if (result == 0 && print_version_flag) {
+    print_version();
+    result = -2; // Special code to indicate we should exit after printing version
   }
-  if (file_count < 1) {
-    print_usage();
-  }
+  
+  // Free the parser
+  argparse_free(parser);
+  
+  return result;
 }
 
 // Auto detect a config file based on the 2 checksums
@@ -1323,8 +1328,18 @@ int main(int argc, char *argv[]) {
   int i;
   n64_rom_format rom_type;
 
+  // Initialize with defaults
   args = default_args;
-  parse_arguments(argc, argv, &args);
+  
+  // Parse command line arguments
+  ret_val = parse_arguments(argc, argv, &args);
+  if (ret_val == -2) {
+    // Version information was printed
+    return EXIT_SUCCESS;
+  } else if (ret_val != 0) {
+    // Error in argument parsing
+    return EXIT_FAILURE;
+  }
 
   len = read_file(args.input_file, &data);
 

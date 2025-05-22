@@ -3,11 +3,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include <capstone/capstone.h>
 
 #include "mipsdisasm.h"
 #include "utils.h"
+#include "argparse.h"
 
 #define MIPSDISASM_VERSION "0.2+"
 
@@ -764,26 +766,6 @@ static arg_config default_args = {
     ASM_GAS, // GNU as
 };
 
-static void print_usage(void) {
-  ERROR("Usage: mipsdisasm [-o OUTPUT] [-p] [-s ASSEMBLER] [-v] ROM [RANGES]\n"
-        "\n"
-        "mipsdisasm v" MIPSDISASM_VERSION ": MIPS disassembler\n"
-        "\n"
-        "Optional arguments:\n"
-        " -o OUTPUT    output filename (default: stdout)\n"
-        " -p           emit pseudoinstructions for related instructions\n"
-        " -s SYNTAX    assembler syntax to use [gas, armips] (default: gas)\n"
-        " -v           verbose progress output\n"
-        "\n"
-        "Arguments:\n"
-        " FILE         input binary file to disassemble\n"
-        " [RANGES]     optional list of ranges (default: entire input file)\n"
-        "              format: <VAddr>:[<Start>-<End>] or "
-        "<VAddr>:[<Start>+<Length>]\n"
-        "              example: 0x80246000:0x1000-0x0E6258\n");
-  exit(EXIT_FAILURE);
-}
-
 void range_parse(range *r, const char *arg) {
   char *colon = strchr(arg, ':');
   r->vaddr = strtoul(arg, NULL, 0);
@@ -800,60 +782,87 @@ void range_parse(range *r, const char *arg) {
 }
 
 // parse command line arguments
-static void parse_arguments(int argc, char *argv[], arg_config *config) {
-  int file_count = 0;
-  if (argc < 2) {
-    print_usage();
-    exit(1);
+static int parse_arguments(int argc, char *argv[], arg_config *config) {
+  arg_parser *parser;
+  int result;
+  const char *syntax_values[] = {"gas", "armips"};
+
+  // Initialize the argument parser
+  parser = argparse_init("mipsdisasm", MIPSDISASM_VERSION, "MIPS disassembler");
+  if (parser == NULL) {
+    ERROR("Error: Failed to initialize argument parser\n");
+    return -1;
   }
-  config->ranges = malloc(argc / 2 * sizeof(*config->ranges));
-  config->range_count = 0;
-  for (int i = 1; i < argc; i++) {
-    if (argv[i][0] == '-') {
-      switch (argv[i][1]) {
-      case 'o':
-        if (++i >= argc) {
-          print_usage();
-        }
-        config->output_file = argv[i];
-        break;
-      case 'p':
-        config->merge_pseudo = 1;
-        break;
-      case 's': {
-        if (++i >= argc) {
-          print_usage();
-        }
-        if ((0 == strcasecmp("gas", argv[i])) ||
-            (0 == strcasecmp("gnu", argv[i]))) {
-          config->syntax = ASM_GAS;
-        } else if (0 == strcasecmp("armips", argv[i])) {
-          config->syntax = ASM_ARMIPS;
-        } else {
-          print_usage();
-        }
-        break;
+
+  // Add flag arguments
+  argparse_add_flag(parser, 'o', "output", ARG_TYPE_STRING,
+                   "output filename (default: stdout)",
+                   "OUTPUT", &config->output_file, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'p', "pseudo", ARG_TYPE_NONE,
+                   "emit pseudoinstructions for related instructions",
+                   NULL, &config->merge_pseudo, false, NULL, 0);
+  
+  argparse_add_flag(parser, 's', "syntax", ARG_TYPE_ENUM,
+                   "assembler syntax to use [gas, armips] (default: gas)",
+                   "SYNTAX", &config->syntax, false, syntax_values, 2);
+  
+  argparse_add_flag(parser, 'v', "verbose", ARG_TYPE_NONE,
+                   "verbose progress output",
+                   NULL, &g_verbosity, false, NULL, 0);
+
+  // Add positional arguments
+  argparse_add_positional(parser, "FILE", "input binary file to disassemble", 
+                         ARG_TYPE_STRING, &config->input_file, true);
+  
+  // Set usage suffix to explain ranges
+  argparse_set_usage_suffix(parser, "[RANGES]\n"
+                           "    [RANGES]     optional list of ranges (default: entire input file)\n"
+                           "                 format: <VAddr>:[<Start>-<End>] or <VAddr>:[<Start>+<Length>]\n"
+                           "                 example: 0x80246000:0x1000-0x0E6258");
+
+  // Parse the arguments
+  result = argparse_parse(parser, argc, argv);
+  
+  // Handle ranges manually since they're a variable number of arguments
+  if (result == 0) {
+    // Skip program name and flags with values and the input file
+    int i;
+    int range_count = 0;
+    
+    // Count how many range arguments we have
+    for (i = 1; i < argc; i++) {
+      if (argv[i][0] != '-' && 
+          strcmp(argv[i], config->input_file) != 0 && 
+          (i == 1 || argv[i-1][0] != '-' || 
+           (argv[i-1][1] != 'o' && argv[i-1][1] != 's'))) {
+        range_count++;
       }
-      case 'v':
-        g_verbosity = 1;
-        break;
-      default:
-        print_usage();
-        break;
+    }
+    
+    if (range_count > 0) {
+      config->ranges = malloc(range_count * sizeof(range));
+      config->range_count = 0;
+      
+      for (i = 1; i < argc; i++) {
+        if (argv[i][0] != '-' && 
+            strcmp(argv[i], config->input_file) != 0 && 
+            (i == 1 || argv[i-1][0] != '-' || 
+             (argv[i-1][1] != 'o' && argv[i-1][1] != 's'))) {
+          range_parse(&config->ranges[config->range_count], argv[i]);
+          config->range_count++;
+        }
       }
     } else {
-      if (file_count == 0) {
-        config->input_file = argv[i];
-      } else {
-        range_parse(&config->ranges[config->range_count], argv[i]);
-        config->range_count++;
-      }
-      file_count++;
+      config->ranges = NULL;
+      config->range_count = 0;
     }
   }
-  if (file_count < 1) {
-    print_usage();
-  }
+  
+  // Free the parser
+  argparse_free(parser);
+  
+  return result;
 }
 
 int main(int argc, char *argv[]) {
@@ -863,10 +872,14 @@ int main(int argc, char *argv[]) {
   unsigned char *data;
   FILE *out;
 
-  // load defaults and parse arguments
+  // load defaults
   out = stdout;
   args = default_args;
-  parse_arguments(argc, argv, &args);
+  
+  // Parse command line arguments
+  if (parse_arguments(argc, argv, &args) != 0) {
+    return EXIT_FAILURE;
+  }
 
   // read input file
   INFO("Reading input file '%s'\n", args.input_file);

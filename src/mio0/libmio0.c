@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "libmio0.h"
 #include "utils.h"
+#include "argparse.h"
 
 // defines
 
@@ -435,67 +437,56 @@ typedef struct {
 
 static arg_config default_config = {NULL, NULL, 0, 1};
 
-static void print_usage(void) {
-  ERROR("Usage: mio0 [-c / -d] [-o OFFSET] FILE [OUTPUT]\n"
-        "\n"
-        "mio0 v" MIO0_VERSION ": MIO0 compression and decompression tool\n"
-        "\n"
-        "Optional arguments:\n"
-        " -c           compress raw data into MIO0 (default: compress)\n"
-        " -d           decompress MIO0 into raw data\n"
-        " -o OFFSET    starting offset in FILE (default: 0)\n"
-        "\n"
-        "File arguments:\n"
-        " FILE        input file\n"
-        " [OUTPUT]    output file (default: FILE.out)\n");
-  exit(1);
-}
-
 // parse command line arguments
-static void parse_arguments(int argc, char *argv[], arg_config *config) {
-  int i;
-  int file_count = 0;
-  if (argc < 2) {
-    print_usage();
-    exit(1);
+static int parse_arguments(int argc, char *argv[], arg_config *config) {
+  arg_parser *parser;
+  int result;
+  bool decompress = false;  // Use a temporary boolean for -d flag
+
+  // Initialize the argument parser
+  parser = argparse_init("mio0", MIO0_VERSION, "MIO0 compression and decompression tool");
+  if (parser == NULL) {
+    ERROR("Error: Failed to initialize argument parser\n");
+    return -1;
   }
-  for (i = 1; i < argc; i++) {
-    if (argv[i][0] == '-') {
-      switch (argv[i][1]) {
-      case 'c':
-        config->compress = 1;
-        break;
-      case 'd':
-        config->compress = 0;
-        break;
-      case 'o':
-        if (++i >= argc) {
-          print_usage();
-        }
-        config->offset = strtoul(argv[i], NULL, 0);
-        break;
-      default:
-        print_usage();
-        break;
-      }
-    } else {
-      switch (file_count) {
-      case 0:
-        config->in_filename = argv[i];
-        break;
-      case 1:
-        config->out_filename = argv[i];
-        break;
-      default: // too many
-        print_usage();
-        break;
-      }
-      file_count++;
-    }
+
+  // Add the compression/decompression flags
+  argparse_add_flag(parser, 'c', "compress", ARG_TYPE_NONE,
+                   "compress raw data into MIO0 (default: compress)", 
+                   NULL, &config->compress, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'd', "decompress", ARG_TYPE_NONE,
+                   "decompress MIO0 into raw data",
+                   NULL, &decompress, false, NULL, 0);
+
+  // Add the offset flag
+  argparse_add_flag(parser, 'o', "offset", ARG_TYPE_UINT,
+                   "starting offset in FILE (default: 0)",
+                   "OFFSET", &config->offset, false, NULL, 0);
+
+  // Add verbose flag
+  argparse_add_flag(parser, 'v', "verbose", ARG_TYPE_NONE,
+                   "verbose progress output", NULL, &g_verbosity, false, NULL, 0);
+
+  // Add positional arguments
+  argparse_add_positional(parser, "FILE", "input file", 
+                         ARG_TYPE_STRING, &config->in_filename, true);
+  
+  argparse_add_positional(parser, "OUTPUT", "output file (default: FILE.out)",
+                         ARG_TYPE_STRING, &config->out_filename, false);
+
+  // Parse the arguments
+  result = argparse_parse(parser, argc, argv);
+  
+  // Process the decompress flag (overrides compress flag)
+  if (decompress) {
+    config->compress = 0;
   }
-  if (file_count < 1) {
-    print_usage();
-  }
+  
+  // Free the parser
+  argparse_free(parser);
+  
+  return result;
 }
 
 int main(int argc, char *argv[]) {
@@ -503,9 +494,15 @@ int main(int argc, char *argv[]) {
   arg_config config;
   int ret_val;
 
-  // get configuration from arguments
+  // Initialize configuration with defaults
   config = default_config;
-  parse_arguments(argc, argv, &config);
+  
+  // Parse command line arguments
+  if (parse_arguments(argc, argv, &config) != 0) {
+    return EXIT_FAILURE;
+  }
+  
+  // If no output filename specified, generate one
   if (config.out_filename == NULL) {
     config.out_filename = out_filename;
     sprintf(config.out_filename, "%s.out", config.in_filename);

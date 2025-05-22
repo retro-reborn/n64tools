@@ -68,7 +68,7 @@ SPLIT_LIBS = -lcapstone -lyaml -lz
 ################### Source Definitions #######################
 
 # Common utility sources used by multiple targets
-UTILS_SRC = src/utils/utils.c
+UTILS_SRC = src/utils/utils.c src/utils/argparse.c
 
 # Define source files for each target
 LIB_SRC  := src/mio0/libmio0.c src/lib/libn64.c src/lib/libsfx.c $(UTILS_SRC)
@@ -89,7 +89,7 @@ sm64geo_SRC := src/sm64geo/sm64geo.c $(UTILS_SRC)
 
 n64graphics_SRC := src/n64graphics/n64graphics.c $(UTILS_SRC)
 
-mio0_SRC := src/mio0/libmio0.c src/mio0/libmio0.h
+mio0_SRC := src/mio0/libmio0.c
 
 n64split_SRC := src/lib/blast.c src/mio0/libmio0.c src/lib/libsfx.c \
 			   src/mipsdisasm/mipsdisasm.c src/n64graphics/n64graphics.c \
@@ -152,8 +152,8 @@ $(BIN_DIR)/sm64geo$(EXT): $(addprefix $(OBJ_DIR)/,$(sm64geo_SRC:.c=.o))
 $(BIN_DIR)/n64graphics$(EXT): $(n64graphics_SRC)
 	$(CC) $(CFLAGS) -DN64GRAPHICS_STANDALONE $^ $(LDFLAGS) -o $@
 
-$(BIN_DIR)/mio0$(EXT): $(mio0_SRC)
-	$(CC) $(CFLAGS) -DMIO0_STANDALONE $(LDFLAGS) -o $@ $<
+$(BIN_DIR)/mio0$(EXT): src/mio0/libmio0.c $(UTILS_SRC)
+	$(CC) $(CFLAGS) -DMIO0_STANDALONE $^ $(LDFLAGS) -o $@
 
 $(BIN_DIR)/mipsdisasm$(EXT): $(mipsdisasm_SRC)
 ifeq ($(DETECTED_OS),macos)

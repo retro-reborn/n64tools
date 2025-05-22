@@ -106,7 +106,7 @@ void split_file(unsigned char *data, unsigned int length, arg_config *args,
 
 void print_usage(void);
 void print_version(void);
-void parse_arguments(int argc, char *argv[], arg_config *config);
+int parse_arguments(int argc, char *argv[], arg_config *config);
 int detect_config_file(unsigned int c1, unsigned int c2, rom_config *config);
 int main(int argc, char *argv[]);
 

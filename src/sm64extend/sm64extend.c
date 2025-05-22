@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "libn64.h"
 #include "utils.h"
+#include "argparse.h"
 
 #define SM64EXTEND_VERSION "0.3.2"
 
@@ -18,91 +20,59 @@ static const sm64_config default_config = {
     0,    // dump MIO0 blocks to files
 };
 
-static void print_usage(void) {
-  ERROR("Usage: sm64extend [-a ALIGNMENT] [-p PADDING] [-s SIZE] [-d] [-f] "
-        "[-v] FILE [OUT_FILE]\n"
-        "\n"
-        "sm64extend v" SM64EXTEND_VERSION ": Super Mario 64 ROM extender\n"
-        "Supports (E), (J), (U), Shindou, and iQue ROMs in .n64, .v64, or .z64 "
-        "formats\n"
-        "\n"
-        "Optional arguments:\n"
-        " -a ALIGNMENT byte boundary to align MIO0 blocks (default: %d)\n"
-        " -p PADDING   padding to insert between MIO0 blocks in KB (default: "
-        "%d)\n"
-        " -s SIZE      size of the extended ROM in MB (default: %d)\n"
-        " -d           dump MIO0 blocks to files in 'mio0files' directory\n"
-        " -f           fill old MIO0 blocks with 0x01\n"
-        " -v           verbose progress output\n"
-        "\n"
-        "File arguments:\n"
-        " FILE        input ROM file\n"
-        " OUT_FILE    output ROM file (default: replaces FILE extension with "
-        ".ext.z64)\n",
-        default_config.alignment, default_config.padding,
-        default_config.ext_size);
-  exit(EXIT_FAILURE);
-}
-
 // parse command line arguments
-static void parse_arguments(int argc, char *argv[], sm64_config *config) {
-  int i;
-  int file_count = 0;
-  if (argc < 2) {
-    print_usage();
+static int parse_arguments(int argc, char *argv[], sm64_config *config) {
+  arg_parser *parser;
+  int result;
+
+  // Initialize the argument parser
+  parser = argparse_init("sm64extend", SM64EXTEND_VERSION, 
+                        "Super Mario 64 ROM extender");
+  if (parser == NULL) {
+    ERROR("Error: Failed to initialize argument parser\n");
+    return -1;
   }
-  for (i = 1; i < argc; i++) {
-    if (argv[i][0] == '-') {
-      switch (argv[i][1]) {
-      case 'a':
-        if (++i >= argc) {
-          print_usage();
-        }
-        config->alignment = strtoul(argv[i], NULL, 0);
-        break;
-      case 'd':
-        config->dump = 1;
-        break;
-      case 'f':
-        config->fill = 1;
-        break;
-      case 'p':
-        if (++i >= argc) {
-          print_usage();
-        }
-        config->padding = strtoul(argv[i], NULL, 0);
-        break;
-      case 's':
-        if (++i >= argc) {
-          print_usage();
-        }
-        config->ext_size = strtoul(argv[i], NULL, 0);
-        break;
-      case 'v':
-        g_verbosity = 1;
-        break;
-      default:
-        print_usage();
-        break;
-      }
-    } else {
-      switch (file_count) {
-      case 0:
-        config->in_filename = argv[i];
-        break;
-      case 1:
-        config->ext_filename = argv[i];
-        break;
-      default: // too many
-        print_usage();
-        break;
-      }
-      file_count++;
-    }
-  }
-  if (file_count < 1) {
-    print_usage();
-  }
+
+  // Add flag arguments
+  argparse_add_flag(parser, 'a', "alignment", ARG_TYPE_UINT,
+                   "byte boundary to align MIO0 blocks (default: 1)",
+                   "ALIGNMENT", &config->alignment, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'p', "padding", ARG_TYPE_UINT,
+                   "padding to insert between MIO0 blocks in KB (default: 32)",
+                   "PADDING", &config->padding, false, NULL, 0);
+  
+  argparse_add_flag(parser, 's', "size", ARG_TYPE_UINT,
+                   "size of the extended ROM in MB (default: 64)",
+                   "SIZE", &config->ext_size, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'd', "dump", ARG_TYPE_NONE,
+                   "dump MIO0 blocks to files in 'mio0files' directory",
+                   NULL, &config->dump, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'f', "fill", ARG_TYPE_NONE,
+                   "fill old MIO0 blocks with 0x01",
+                   NULL, &config->fill, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'v', "verbose", ARG_TYPE_NONE,
+                   "verbose progress output",
+                   NULL, &g_verbosity, false, NULL, 0);
+
+  // Add positional arguments
+  argparse_add_positional(parser, "FILE", "input ROM file", 
+                         ARG_TYPE_STRING, &config->in_filename, true);
+  
+  argparse_add_positional(parser, "OUT_FILE", 
+                         "output ROM file (default: replaces FILE extension with .ext.z64)",
+                         ARG_TYPE_STRING, &config->ext_filename, false);
+
+  // Parse the arguments
+  result = argparse_parse(parser, argc, argv);
+  
+  // Free the parser
+  argparse_free(parser);
+  
+  return result;
 }
 
 int main(int argc, char *argv[]) {
@@ -115,9 +85,15 @@ int main(int argc, char *argv[]) {
   rom_type rtype;
   rom_version rversion;
 
-  // get configuration from arguments
+  // Initialize configuration with defaults
   config = default_config;
-  parse_arguments(argc, argv, &config);
+  
+  // Parse command line arguments
+  if (parse_arguments(argc, argv, &config) != 0) {
+    return EXIT_FAILURE;
+  }
+  
+  // Generate output filename if not provided
   if (config.ext_filename == NULL) {
     config.ext_filename = ext_filename;
     generate_filename(config.in_filename, config.ext_filename, "ext.z64");

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <stdbool.h>
 
 #define STBI_NO_LINEAR
 #define STBI_NO_HDR
@@ -12,6 +13,7 @@
 
 #include "n64graphics.h"
 #include "utils.h"
+#include "argparse.h"
 
 // SCALE_M_N: upscale/downscale M-bit integer to N-bit
 #define SCALE_5_8(VAL_) (((VAL_) * 0xFF) / 0x1F)
@@ -536,15 +538,6 @@ static const format_entry format_table[] = {
     {"ci8", IMG_FORMAT_CI, 8},       {"ci16", IMG_FORMAT_CI, 16},
 };
 
-static const char *format2str(img_format format, int depth) {
-  for (unsigned i = 0; i < DIM(format_table); i++) {
-    if (format == format_table[i].format && depth == format_table[i].depth) {
-      return format_table[i].name;
-    }
-  }
-  return "unknown";
-}
-
 static int parse_format(graphics_config *config, const char *str) {
   for (unsigned i = 0; i < DIM(format_table); i++) {
     if (!strcasecmp(str, format_table[i].name)) {
@@ -556,97 +549,92 @@ static int parse_format(graphics_config *config, const char *str) {
   return 0;
 }
 
-static void print_usage(void) {
-  ERROR("Usage: n64graphics -e/-i BIN_FILE -g PNG_FILE [-o offset] [-f FORMAT] "
-        "[-w WIDTH] [-h HEIGHT] [-V]\n"
-        "\n"
-        "n64graphics v" N64GRAPHICS_VERSION ": N64 graphics manipulator\n"
-        "\n"
-        "Required arguments:\n"
-        " -e BIN_FILE  export from BIN_FILE to PNG_FILE\n"
-        " -i BIN_FILE  import from PNG_FILE to BIN_FILE\n"
-        " -g PNG_FILE  graphics file to import/export (.png)\n"
-        "Optional arguments:\n"
-        " -o OFFSET    starting offset in BIN_FILE (prevents truncation during "
-        "import)\n"
-        " -f FORMAT    texture format: rgba16, rgba32, ia1, ia4, ia8, ia16, "
-        "i4, i8, ci8, ci16 (default: %s)\n"
-        " -w WIDTH     export texture width (default: %d)\n"
-        " -h HEIGHT    export texture height (default: %d)\n"
-        " -v           verbose logging\n"
-        " -V           print version information\n",
-        format2str(default_config.format, default_config.depth),
-        default_config.width, default_config.height);
-}
-
-static void print_version(void) {
-  ERROR("n64graphics v" N64GRAPHICS_VERSION ", using:\n"
-        "  %s\n"
-        "  %s\n",
-        n64graphics_get_read_version(), n64graphics_get_write_version());
-}
-
 // parse command line arguments
 static int parse_arguments(int argc, char *argv[], graphics_config *config) {
-  for (int i = 1; i < argc; i++) {
-    if (argv[i][0] == '-') {
-      switch (argv[i][1]) {
-      case 'e':
-        if (++i >= argc)
-          return 0;
-        config->bin_filename = argv[i];
-        config->mode = MODE_EXPORT;
-        break;
-      case 'f':
-        if (++i >= argc)
-          return 0;
-        if (!parse_format(config, argv[i])) {
-          return 0;
-        }
-        break;
-      case 'i':
-        if (++i >= argc)
-          return 0;
-        config->bin_filename = argv[i];
-        config->mode = MODE_IMPORT;
-        break;
-      case 'g':
-        if (++i >= argc)
-          return 0;
-        config->img_filename = argv[i];
-        break;
-      case 'h':
-        if (++i >= argc)
-          return 0;
-        config->height = strtoul(argv[i], NULL, 0);
-        break;
-      case 'o':
-        if (++i >= argc)
-          return 0;
-        config->offset = strtoul(argv[i], NULL, 0);
-        config->truncate = 0;
-        break;
-      case 'w':
-        if (++i >= argc)
-          return 0;
-        config->width = strtoul(argv[i], NULL, 0);
-        break;
-      case 'v':
-        g_verbosity = 1;
-        break;
-      case 'V':
-        print_version();
-        exit(0);
-        break;
-      default:
-        return 0;
-        break;
-      }
-    } else {
-      return 0;
+  arg_parser *parser;
+  int result;
+  
+  // Define format options for the enum
+  const char *format_options[] = {"rgba16", "rgba32", "ia1", "ia4", "ia8", "ia16", "i4", "i8", "ci8", "ci16"};
+  int format_index = 0;  // Will be set by argparse
+
+  // Initialize the argument parser
+  parser = argparse_init("n64graphics", N64GRAPHICS_VERSION, "N64 graphics manipulator");
+  if (parser == NULL) {
+    ERROR("Error: Failed to initialize argument parser\n");
+    return -1;
+  }
+
+  // Add the export/import flags
+  argparse_add_flag(parser, 'e', "export", ARG_TYPE_STRING,
+                   "export from BIN_FILE to PNG_FILE", 
+                   "BIN_FILE", &config->bin_filename, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'i', "import", ARG_TYPE_STRING,
+                   "import from PNG_FILE to BIN_FILE",
+                   "BIN_FILE", &config->bin_filename, false, NULL, 0);
+
+  // Add other flags
+  argparse_add_flag(parser, 'g', "png", ARG_TYPE_STRING,
+                   "PNG image file",
+                   "PNG_FILE", &config->img_filename, false, NULL, 0);
+                   
+  argparse_add_flag(parser, 'f', "format", ARG_TYPE_ENUM,
+                   "texture format (rgba16, ia16, i8, etc.)",
+                   "FORMAT", &format_index, false, format_options, 
+                   sizeof(format_options) / sizeof(format_options[0]));
+                   
+  argparse_add_flag(parser, 'w', "width", ARG_TYPE_INT,
+                   "width of image in pixels (default: 32)",
+                   "WIDTH", &config->width, false, NULL, 0);
+                   
+  argparse_add_flag(parser, 'h', "height", ARG_TYPE_INT,
+                   "height of image in pixels (default: 32)",
+                   "HEIGHT", &config->height, false, NULL, 0);
+                   
+  argparse_add_flag(parser, 'o', "offset", ARG_TYPE_UINT,
+                   "offset in output file to write to (default: 0)",
+                   "OFFSET", &config->offset, false, NULL, 0);
+                   
+  argparse_add_flag(parser, 'v', "verbose", ARG_TYPE_NONE,
+                   "verbose progress output", NULL, &g_verbosity, false, NULL, 0);
+
+  // Parse the arguments
+  result = argparse_parse(parser, argc, argv);
+  
+  // Process format selection
+  if (result == 0 && parser->flags[3].processed) {  // 'f' flag was used
+    const char *format_str = format_options[format_index];
+    if (!parse_format(config, format_str)) {
+      ERROR("Error: invalid format '%s'\n", format_str);
+      result = -1;
     }
   }
-  return 1;
+  
+  // Determine the mode based on which flags were set
+  if (parser->flags[0].processed) {  // -e flag was used
+    config->mode = MODE_EXPORT;
+  } else if (parser->flags[1].processed) {  // -i flag was used
+    config->mode = MODE_IMPORT;
+  }
+  
+  // Check for required arguments
+  if (result == 0) {
+    if (config->bin_filename == NULL) {
+      ERROR("Error: must specify either -e BIN_FILE or -i BIN_FILE\n");
+      result = -1;
+    }
+    
+    if (config->img_filename == NULL) {
+      ERROR("Error: must specify -g PNG_FILE\n");
+      result = -1;
+    }
+  }
+  
+  // Free the parser
+  argparse_free(parser);
+  
+  return result;
 }
 
 int main(int argc, char *argv[]) {
@@ -661,8 +649,7 @@ int main(int argc, char *argv[]) {
   int res;
 
   int valid = parse_arguments(argc, argv, &config);
-  if (!valid || !config.bin_filename || !config.bin_filename) {
-    print_usage();
+  if (valid <= 0 || !config.bin_filename || !config.img_filename) {
     exit(EXIT_FAILURE);
   }
 

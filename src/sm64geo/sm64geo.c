@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "utils.h"
+#include "argparse.h"
 
 #define SM64GEO_VERSION "0.1"
 
@@ -98,67 +100,46 @@ void print_geo(FILE *out, unsigned char *data, unsigned int offset,
   }
 }
 
-static void print_usage(void) {
-  ERROR("Usage: sm64geo [-l LENGTH] [-o OFFSET] FILE\n"
-        "\n"
-        "sm64geo v" SM64GEO_VERSION ": Super Mario 64 geometry layout decoder\n"
-        "\n"
-        "Optional arguments:\n"
-        " -l LENGTH    length of data to decode in bytes (default: length of "
-        "file)\n"
-        " -o OFFSET    starting offset in FILE (default: 0)\n"
-        "\n"
-        "File arguments:\n"
-        " FILE        input file\n"
-        " [OUTPUT]    output file (default: stdout)\n");
-  exit(1);
-}
+// parse command line arguments using the new argparse utility
+static int parse_arguments(int argc, char *argv[], arg_config *config) {
+  arg_parser *parser;
+  int result;
 
-// parse command line arguments
-static void parse_arguments(int argc, char *argv[], arg_config *config) {
-  int i;
-  int file_count = 0;
-  if (argc < 2) {
-    print_usage();
-    exit(1);
+  // Initialize the argument parser
+  parser = argparse_init("sm64geo", SM64GEO_VERSION, "Super Mario 64 geometry layout decoder");
+  if (parser == NULL) {
+    ERROR("Error: Failed to initialize argument parser\n");
+    return -1;
   }
-  for (i = 1; i < argc; i++) {
-    if (argv[i][0] == '-') {
-      switch (argv[i][1]) {
-      case 'l':
-        if (++i >= argc) {
-          print_usage();
-        }
-        config->length = strtoul(argv[i], NULL, 0);
-        break;
-      case 'o':
-        if (++i >= argc) {
-          print_usage();
-        }
-        config->offset = strtoul(argv[i], NULL, 0);
-        break;
-      default:
-        print_usage();
-        break;
-      }
-    } else {
-      switch (file_count) {
-      case 0:
-        config->in_filename = argv[i];
-        break;
-      case 1:
-        config->out_filename = argv[i];
-        break;
-      default: // too many
-        print_usage();
-        break;
-      }
-      file_count++;
-    }
-  }
-  if (file_count < 1) {
-    print_usage();
-  }
+
+  // Add the length flag
+  argparse_add_flag(parser, 'l', "length", ARG_TYPE_UINT, 
+                   "length of data to decode in bytes (default: length of file)",
+                   "LENGTH", &config->length, false, NULL, 0);
+
+  // Add the offset flag
+  argparse_add_flag(parser, 'o', "offset", ARG_TYPE_UINT,
+                   "starting offset in FILE (default: 0)",
+                   "OFFSET", &config->offset, false, NULL, 0);
+
+  // Add verbose flag
+  argparse_add_flag(parser, 'v', "verbose", ARG_TYPE_NONE,
+                   "verbose progress output", NULL, &g_verbosity, false, NULL, 0);
+
+  // Add positional arguments
+  argparse_add_positional(parser, "FILE", "input file", 
+                         ARG_TYPE_STRING, &config->in_filename, true);
+  
+  argparse_add_positional(parser, "OUTPUT", "output file (default: stdout)",
+                         ARG_TYPE_STRING, &config->out_filename, false);
+
+  // Parse the arguments
+  result = argparse_parse(parser, argc, argv);
+  
+  // Free the parser
+  argparse_free(parser);
+  
+  return result;
 }
 
 int main(int argc, char *argv[]) {
@@ -167,9 +148,15 @@ int main(int argc, char *argv[]) {
   unsigned char *data;
   long size;
 
-  // get configuration from arguments
+  // Initialize configuration with defaults
   config = default_config;
-  parse_arguments(argc, argv, &config);
+  
+  // Parse command line arguments
+  if (parse_arguments(argc, argv, &config) != 0) {
+    return EXIT_FAILURE;
+  }
+  
+  // Setup output file
   if (config.out_filename == NULL) {
     fout = stdout;
   } else {

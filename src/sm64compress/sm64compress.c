@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "libmio0.h"
 #include "libn64.h"
 #include "utils.h"
+#include "argparse.h"
 
 #define SM64COMPRESS_VERSION "0.2a"
 
@@ -48,87 +50,65 @@ static const compress_config default_config = {
     0,    // geo
 };
 
-static void print_usage(void) {
-  ERROR("Usage: sm64compress [-a ALIGNMENT] [-c] [-d] [-f] [-g] [-v] FILE "
-        "[OUT_FILE]\n"
-        "\n"
-        "sm64compress v" SM64COMPRESS_VERSION
-        ": Super Mario 64 ROM compressor and fixer\n"
-        "\n"
-        "Optional arguments:\n"
-        " -a ALIGNMENT byte boundary to align blocks (default: %d)\n"
-        " -c           compress all 0x17 blocks using MIO0 (experimental)\n"
-        " -d           dump blocks to 'dump' directory\n"
-        " -f           fix F3D combine blending parameters\n"
-        " -g           fix geo layout display list layers\n"
-        " -v           verbose progress output\n"
-        "\n"
-        "File arguments:\n"
-        " FILE         input ROM file\n"
-        " OUT_FILE     output compressed ROM file (default: replaces input "
-        "extension with .out.z64)\n",
-        default_config.alignment);
-  exit(1);
-}
-
 // parse command line arguments
-static void parse_arguments(int argc, char *argv[], compress_config *config) {
-  int i;
-  int file_count = 0;
-  if (argc < 2) {
-    print_usage();
-    exit(1);
+static int parse_arguments(int argc, char *argv[], compress_config *config) {
+  arg_parser *parser;
+  int result;
+
+  // Initialize the argument parser
+  parser = argparse_init("sm64compress", SM64COMPRESS_VERSION, 
+                        "Super Mario 64 ROM compressor and fixer");
+  if (parser == NULL) {
+    ERROR("Error: Failed to initialize argument parser\n");
+    return -1;
   }
-  for (i = 1; i < argc; i++) {
-    if (argv[i][0] == '-') {
-      switch (argv[i][1]) {
-      case 'a':
-        if (++i >= argc) {
-          print_usage();
-        }
-        config->alignment = strtoul(argv[i], NULL, 0);
-        if (!is_power2(config->alignment)) {
-          ERROR("Error: Alignment must be power of 2\n");
-          exit(2);
-        }
-        break;
-      case 'c':
-        config->compress = 1;
-        break;
-      case 'd':
-        config->dump = 1;
-        break;
-      case 'f':
-        config->fix_f3d = 1;
-        break;
-      case 'g':
-        config->fix_geo = 1;
-        break;
-      case 'v':
-        g_verbosity = 1;
-        break;
-      default:
-        print_usage();
-        break;
-      }
-    } else {
-      switch (file_count) {
-      case 0:
-        config->in_filename = argv[i];
-        break;
-      case 1:
-        config->out_filename = argv[i];
-        break;
-      default: // too many
-        print_usage();
-        break;
-      }
-      file_count++;
-    }
+
+  // Add flag arguments
+  argparse_add_flag(parser, 'a', "alignment", ARG_TYPE_UINT,
+                   "byte boundary to align blocks (default: 16)",
+                   "ALIGNMENT", &config->alignment, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'c', "compress", ARG_TYPE_NONE,
+                   "compress all 0x17 blocks using MIO0 (experimental)",
+                   NULL, &config->compress, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'd', "dump", ARG_TYPE_NONE,
+                   "dump blocks to 'dump' directory",
+                   NULL, &config->dump, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'f', "fix-f3d", ARG_TYPE_NONE,
+                   "fix F3D combine blending parameters",
+                   NULL, &config->fix_f3d, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'g', "fix-geo", ARG_TYPE_NONE,
+                   "fix geo layout display list layers",
+                   NULL, &config->fix_geo, false, NULL, 0);
+  
+  argparse_add_flag(parser, 'v', "verbose", ARG_TYPE_NONE,
+                   "verbose progress output",
+                   NULL, &g_verbosity, false, NULL, 0);
+
+  // Add positional arguments
+  argparse_add_positional(parser, "FILE", "input ROM file", 
+                         ARG_TYPE_STRING, &config->in_filename, true);
+  
+  argparse_add_positional(parser, "OUT_FILE", 
+                         "output compressed ROM file (default: replaces input extension with .out.z64)",
+                         ARG_TYPE_STRING, &config->out_filename, false);
+
+  // Parse the arguments
+  result = argparse_parse(parser, argc, argv);
+  
+  // Validate alignment is a power of 2
+  if (result == 0 && !is_power2(config->alignment)) {
+    ERROR("Error: Alignment must be power of 2\n");
+    result = -1;
   }
-  if (file_count < 1) {
-    print_usage();
-  }
+  
+  // Free the parser
+  argparse_free(parser);
+  
+  return result;
 }
 
 int compare_block(const void *a, const void *b) {
@@ -607,9 +587,15 @@ int main(int argc, char *argv[]) {
   long bytes_written;
   int out_size;
 
-  // get configuration from arguments
+  // Initialize configuration with defaults
   config = default_config;
-  parse_arguments(argc, argv, &config);
+  
+  // Parse command line arguments
+  if (parse_arguments(argc, argv, &config) != 0) {
+    return EXIT_FAILURE;
+  }
+  
+  // Generate output filename if not provided
   if (config.out_filename == NULL) {
     config.out_filename = out_filename;
     generate_filename(config.in_filename, config.out_filename, "out.z64");
