@@ -1,11 +1,10 @@
 #ifndef STRUTILS_H
 #define STRUTILS_H
 
-typedef struct
-{
-   char *buf;
-   size_t allocated;
-   size_t index;
+typedef struct {
+  char *buf;
+  size_t allocated;
+  size_t index;
 } strbuf;
 
 void strbuf_alloc(strbuf *sbuf, size_t allocate);

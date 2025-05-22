@@ -15,7 +15,8 @@ float cosf(float);
 float sqrtf(float);
 
 // SM64
-void PrintInt(unsigned int x, unsigned int y, const char *format, unsigned int value);
+void PrintInt(unsigned int x, unsigned int y, const char *format,
+              unsigned int value);
 void PrintStr(unsigned int x, unsigned int y, const char *str);
 void PrintXY(unsigned int x, unsigned int y, const char *str);
 

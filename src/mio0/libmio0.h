@@ -7,11 +7,10 @@
 
 // typedefs
 
-typedef struct
-{
-   unsigned int dest_size;
-   unsigned int comp_offset;
-   unsigned int uncomp_offset;
+typedef struct {
+  unsigned int dest_size;
+  unsigned int comp_offset;
+  unsigned int uncomp_offset;
 } mio0_header_t;
 
 // function prototypes
@@ -34,13 +33,15 @@ int mio0_decode(const unsigned char *in, unsigned char *out, unsigned int *end);
 // in: buffer containing raw data
 // out: buffer for MIO0 data
 // returns size of compressed data in 'out' including MIO0 header
-int mio0_encode(const unsigned char *in, unsigned int length, unsigned char *out);
+int mio0_encode(const unsigned char *in, unsigned int length,
+                unsigned char *out);
 
 // decode an entire MIO0 block at an offset from file to output file
 // in_file: input filename
 // offset: offset to start decoding from in_file
 // out_file: output filename
-int mio0_decode_file(const char *in_file, unsigned long offset, const char *out_file);
+int mio0_decode_file(const char *in_file, unsigned long offset,
+                     const char *out_file);
 
 // encode an entire file
 // in_file: input filename containing raw data to be encoded

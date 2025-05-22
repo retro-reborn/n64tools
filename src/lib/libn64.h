@@ -4,34 +4,31 @@
 #define MIO0_DIR "mio0files"
 
 // typedefs
-typedef enum
-{
-   ROM_INVALID,     // not valid SM64 ROM
-   ROM_SM64_BS,     // SM64 byte-swapped (BADC)
-   ROM_SM64_BE,     // SM64 big-endian (ABCD)
-   ROM_SM64_LE,     // SM64 little-endian
-   ROM_SM64_BE_EXT, // SM64 big-endian, extended
+typedef enum {
+  ROM_INVALID,     // not valid SM64 ROM
+  ROM_SM64_BS,     // SM64 byte-swapped (BADC)
+  ROM_SM64_BE,     // SM64 big-endian (ABCD)
+  ROM_SM64_LE,     // SM64 little-endian
+  ROM_SM64_BE_EXT, // SM64 big-endian, extended
 } rom_type;
 
-typedef enum
-{
-   VERSION_UNKNOWN,
-   VERSION_SM64_U,
-   VERSION_SM64_E,
-   VERSION_SM64_J,
-   VERSION_SM64_SHINDOU,
-   VERSION_SM64_IQUE,
+typedef enum {
+  VERSION_UNKNOWN,
+  VERSION_SM64_U,
+  VERSION_SM64_E,
+  VERSION_SM64_J,
+  VERSION_SM64_SHINDOU,
+  VERSION_SM64_IQUE,
 } rom_version;
 
-typedef struct
-{
-   char *in_filename;
-   char *ext_filename;
-   unsigned int ext_size;
-   unsigned int padding;
-   unsigned int alignment;
-   char fill;
-   char dump;
+typedef struct {
+  char *in_filename;
+  char *ext_filename;
+  unsigned int ext_size;
+  unsigned int padding;
+  unsigned int alignment;
+  char fill;
+  char dump;
 } sm64_config;
 
 // determine ROM type based on data
@@ -50,10 +47,8 @@ rom_version sm64_rom_version(unsigned char *buf);
 // in_buf: buffer containing entire contents of SM64 data in big endian
 // length: length of in_buf
 // out_buf: buffer containing extended SM64
-void sm64_decompress_mio0(const sm64_config *config,
-                          unsigned char *in_buf,
-                          unsigned int in_length,
-                          unsigned char *out_buf);
+void sm64_decompress_mio0(const sm64_config *config, unsigned char *in_buf,
+                          unsigned int in_length, unsigned char *out_buf);
 
 // update N64 header checksums
 // buf: buffer containing ROM data
