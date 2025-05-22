@@ -1,4 +1,9 @@
 ################ Target Executable and Sources ###############
+#
+# Usage:
+#   make               - Build with default optimization (3)
+#   make OPTFLAG=0     - Build with custom optimization level (e.g., 0, 1, 2, g)
+#   make clean         - Remove all build artifacts
 
 # Define output directory structure
 OBJ_DIR  = ./obj
@@ -9,7 +14,7 @@ SPLIT_DIR = $(OBJ_DIR)/n64split
 SM64_LIB := libn64.a
 
 # Define all targets
-TARGETS := sm64compress n64cksum mipsdisasm sm64extend f3d f3d2obj sm64geo n64graphics mio0 n64split sm64walk
+TARGETS := sm64compress n64cksum mipsdisasm sm64extend f3d f3d2obj sm64geo n64graphics mio0 n64split sm64walk bootinjector64
 
 # OS Detection
 ifeq ($(OS),Windows_NT)
@@ -42,9 +47,12 @@ CC      = $(CROSS)gcc
 LD      = $(CC)
 AR      = $(CROSS)ar
 
+# Optimization level
+OPTFLAG ?= 3
+
 # Common compilation flags
 INCLUDES = -I. -I./ext -Isrc -Isrc/lib -Isrc/utils -Isrc/n64split -Isrc/mipsdisasm -Isrc/n64graphics -Isrc/mio0
-CFLAGS   = -Wall -Wextra -O3 -ffunction-sections -fdata-sections $(INCLUDES) $(DEFS) -MMD
+CFLAGS   = -Wall -Wextra -O$(OPTFLAG) -ffunction-sections -fdata-sections $(INCLUDES) $(DEFS) -MMD
 
 # OS-specific linker flags
 ifeq ($(DETECTED_OS),macos)
@@ -91,6 +99,8 @@ n64split_SRC := src/lib/blast.c src/mio0/libmio0.c src/lib/libsfx.c \
 			   $(UTILS_SRC) src/utils/yamlconfig.c
 
 sm64walk_SRC := src/sm64walk/sm64walk.c
+
+bootinjector64_SRC := src/bootinjector64/bootinjector64.c $(UTILS_SRC)
 
 # Convert source files to object files
 LIB_OBJS = $(addprefix $(OBJ_DIR)/,$(LIB_SRC:.c=.o))
@@ -161,6 +171,9 @@ endif
 
 $(BIN_DIR)/sm64walk$(EXT): $(sm64walk_SRC) $(SM64_LIB)
 	$(CC) $(CFLAGS) -o $@ $^
+
+$(BIN_DIR)/bootinjector64$(EXT): $(addprefix $(OBJ_DIR)/,$(bootinjector64_SRC:.c=.o)) $(SM64_LIB)
+	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 # Utility target
 rawmips: src/mipsdisasm/rawmips.c src/utils/utils.c
