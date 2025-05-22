@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "libmio0.h"
-#include "libsm64.h"
+#include "libn64.h"
 #include "utils.h"
 
 // TODO: make these configurable

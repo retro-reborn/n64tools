@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "libsm64.h"
+#include "libn64.h"
 #include "utils.h"
 
 #define N64CKSUM_VERSION "0.1"

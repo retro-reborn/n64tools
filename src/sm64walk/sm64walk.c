@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "libsm64.h"
+#include "libn64.h"
 #include "utils.h"
 
 #define SM64WALK_VERSION "0.1"

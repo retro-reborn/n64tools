@@ -365,7 +365,7 @@ void generate_ld_script(arg_config *args, rom_config *config)
 void section_sm64_geo(unsigned char *data, arg_config *args, rom_config *config, disasm_state *state, split_section *sec, char* start_label, char* outfilename, char* outfilepath, FILE *fasm, strbuf *makeheader_level) {
    char geofilename[FILENAME_MAX];
    FILE *fgeo;
-   if (sec->label == NULL || sec->label[0] == '\0') {
+   if (sec->label[0] == '\0') {
       sprintf(geofilename, "%s.%06X.geo.s", config->basename, sec->start);
       sprintf(start_label, "L%06X", sec->start);
    } else {
@@ -396,20 +396,18 @@ void section_sm64_geo(unsigned char *data, arg_config *args, rom_config *config,
 void write_bin_type(split_section *sec, char* outfilename, char* start_label, FILE* fasm, unsigned char *data, char* outfilepath, arg_config * args, rom_config *config) {
    char* output_dir=BIN_SUBDIR;
    char bin_dir[FILENAME_MAX];
-   if (sec->section_name != NULL) {
-      output_dir=sec->section_name;
-   }
+   output_dir=sec->section_name;
    sprintf(bin_dir, "%s/%s", args->output_dir, output_dir);
    make_dir(bin_dir);
 
-   if (sec->label == NULL || sec->label[0] == '\0') {
+   if (sec->label[0] == '\0') {
       sprintf(outfilename, "%s/%s.%06X.%s", output_dir, config->basename, sec->start,sec->section_name);
    } else {
       sprintf(outfilename, "%s/%s.%06X.%s.%s", output_dir, config->basename, sec->start, sec->label,sec->section_name);
    }
    sprintf(outfilepath, "%s/%s", args->output_dir, outfilename);
    write_file(outfilepath, &data[sec->start], sec->end - sec->start);
-   if (sec->label == NULL || sec->label[0] == '\0') {
+   if (sec->label[0] == '\0') {
       sprintf(start_label, "L%06X", sec->start);
    } else {
       strcpy(start_label, sec->label);
@@ -495,7 +493,7 @@ void split_file(unsigned char *data, unsigned int length, arg_config *args, rom_
       // error checking
       if (sec->start >= length || sec->end > length) {
          ERROR("Error: section past end: 0x%X, 0x%X (%s) > 0x%X\n",
-               sec->start, sec->end, sec->label ? sec->label : "", length);
+               sec->start, sec->end, sec->label[0] ? sec->label : "", length);
          exit(4);
       }
 
@@ -567,7 +565,7 @@ void split_file(unsigned char *data, unsigned int length, arg_config *args, rom_
             break;
          case TYPE_PTR:
             INFO("Section ptr: %X-%X\n", sec->start, sec->end);
-            if (sec->label == NULL || sec->label[0] == '\0') {
+            if (sec->label[0] == '\0') {
                sprintf(start_label, "Ptr%06X", sec->start);
             } else {
                strcpy(start_label, sec->label);
@@ -673,7 +671,7 @@ void split_file(unsigned char *data, unsigned int length, arg_config *args, rom_
             FILE *binasm;
             unsigned char *binfilecontents = NULL;
             long binfilelen = 0;
-            if (sec->label == NULL || sec->label[0] == '\0') {
+            if (sec->label[0] == '\0') {
                sprintf(start_label, "L%06X", sec->start);
             } else {
                strcpy(start_label, sec->label);
@@ -986,7 +984,7 @@ void split_file(unsigned char *data, unsigned int length, arg_config *args, rom_
          {
             FILE *flevel;
             char levelfilename[FILENAME_MAX];
-            if (sec->label == NULL || sec->label[0] == '\0') {
+            if (sec->label[0] == '\0') {
                sprintf(start_label, "L%06X", sec->start);
             } else {
                strcpy(start_label, sec->label);
@@ -1011,7 +1009,7 @@ void split_file(unsigned char *data, unsigned int length, arg_config *args, rom_
             fprintf(flevel, "%s_end:\n", start_label);
             fclose(flevel);
 
-            if (sec->label == NULL || sec->label[0] == '\0') {
+            if (sec->label[0] == '\0') {
                sprintf(start_label, "L%06X", sec->start);
             } else {
                strcpy(start_label, sec->label);
@@ -1026,7 +1024,7 @@ void split_file(unsigned char *data, unsigned int length, arg_config *args, rom_
             FILE *f_beh;
             char beh_filename[FILENAME_MAX];
             INFO("Section relocated behavior: %s %X-%X\n", sec->label, sec->start, sec->end);
-            if (sec->label == NULL || sec->label[0] == '\0') {
+            if (sec->label[0] == '\0') {
                sprintf(beh_filename, "%06X.s", sec->start);
             } else {
                sprintf(beh_filename, "%s.s", sec->label);

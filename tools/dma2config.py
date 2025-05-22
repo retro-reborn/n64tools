@@ -44,7 +44,7 @@ if len(sys.argv) < 2:
 
 # read in log file as CSV and parse rows
 eprint("Parsing '{}'...".format(sys.argv[1]))
-with open(sys.argv[1], 'rb') as csvfile:
+with open(sys.argv[1], 'r') as csvfile:
    spamreader = csv.reader(csvfile, delimiter=',')
    for row in spamreader:
       if row[0] == 'ROM':

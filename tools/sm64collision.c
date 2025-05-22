@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../utils.h"
+#include "../src/utils/utils.h"
 
 #define SM64COLLISION_VERSION "0.1"
 

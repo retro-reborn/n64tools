@@ -5,7 +5,7 @@
 
 #include <capstone/capstone.h>
 
-#include "../utils.h"
+#include "../utils/utils.h"
 
 typedef struct
 {

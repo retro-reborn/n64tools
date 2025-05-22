@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../n64graphics.h"
-#include "../utils.h"
+#include "../src/n64graphics/n64graphics.h"
+#include "../src/utils/utils.h"
 
 #define N64CI_VERSION "0.1"
 

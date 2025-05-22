@@ -1,5 +1,4 @@
 # Example modifications
-
 This directory contains examples for replacing textures, patching assembly 
 source, and updating binaries. The steps for applying the examples to a split 
 ROM are given below. Most examples include a batch file to automate the process.

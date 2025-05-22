@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../config.h"
-#include "../utils.h"
+#include "../src/utils/config.h"
+#include "../src/utils/utils.h"
 
 #define DEFAULT_CONFIG "../configs/sm64.u.config"
 
@@ -109,7 +109,7 @@ static unsigned int map(unsigned int rom)
    return 0;
 }
 
-int main(int argc, char *argv[])
+int main()
 {
    rom_config config;
    FILE *out;
@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
 
    // parse config file
    INFO("Parsing config file '%s'\n", DEFAULT_CONFIG);
-   if (parse_config_file(DEFAULT_CONFIG, &config)) {
+   if (config_parse_file(DEFAULT_CONFIG, &config)) {
       ERROR("Error parsing config file '%s'\n", DEFAULT_CONFIG);
       return 1;
    }
@@ -132,26 +132,26 @@ int main(int argc, char *argv[])
    for (i = 0; i < config.section_count; i++) {
       split_section *sec = &config.sections[i];
       if (sec->type == TYPE_MIO0) {
-         if (sec->extra) {
-            texture *texts = sec->extra;
+         if (sec->children && sec->child_count > 0) {
             int t;
             fprintf(out, "montage \\\n");
-            for (t = 0; t < sec->extra_len; t++) {
+            for (t = 0; t < sec->child_count; t++) {
                char name[256];
                char format[8];
-               w = texts[t].width;
-               h = texts[t].height;
-               offset = texts[t].offset;
-               switch (texts[t].format) {
-                  case FORMAT_IA:
-                     sprintf(name, "%s.0x%05X.ia%d.png", sec->label, offset, texts[t].depth);
-                     sprintf(format, "ia%d", texts[t].depth);
+               texture *tex = &sec->children[t].tex;
+               w = tex->width;
+               h = tex->height;
+               offset = tex->offset;
+               switch (tex->format) {
+                  case TYPE_TEX_IA:
+                     sprintf(name, "%s.0x%05X.ia%d.png", sec->label, offset, tex->depth);
+                     sprintf(format, "ia%d", tex->depth);
                      break;
-                  case FORMAT_RGBA:
+                  case TYPE_TEX_RGBA:
                      sprintf(name, "%s.0x%05X.png", sec->label, offset);
                      sprintf(format, "rgba");
                      break;
-                  case FORMAT_SKYBOX:
+                  case TYPE_TEX_SKYBOX:
                      sprintf(name, "%s.0x%05X.skybox.png", sec->label, offset);
                      sprintf(format, "sky");
                      break;
@@ -160,8 +160,8 @@ int main(int argc, char *argv[])
                }
                fprintf(out, "        -label '%05X\\n%s\\n%dx%d' ../sm64.split/textures/%s \\\n", offset, format, w, h, name);
             }
-            int x = MIN(10, sec->extra_len);
-            int y = MAX(1, (sec->extra_len + 9) / 10);
+            int x = MIN(10, sec->child_count);
+            int y = MAX(1, (sec->child_count + 9) / 10);
             fprintf(out, "        -tile %dx%d -background none -geometry '64x64+2+2>' montages/%s.png\n\n",
                     x, y, sec->label);
             fprintf(out, "pngcrush -ow montages/%s.png\n\n", sec->label);
@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
    for (i = 0; i < config.section_count; i++) {
       split_section *sec = &config.sections[i];
       if (sec->type == TYPE_MIO0) {
-         if (sec->extra) {
+         if (sec->children && sec->child_count > 0) {
             fprintf(out, "<tr><td>%X</td><td>%X</td><td><img src=\"montages/%s.png\"></td></tr>\n",
                     sec->start, map(sec->start), sec->label);
          }

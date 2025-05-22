@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "../utils.h"
+#include "../utils/utils.h"
 
 #define NUM_COLS 4
 #define NUM_ROWS (0x80/NUM_COLS)

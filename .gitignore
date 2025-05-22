@@ -19,4 +19,10 @@
 
 # Executables
 *.exe
-bin
+
+# Output files
+bin/
+
+# IDE
+.vscode/
+.idea/

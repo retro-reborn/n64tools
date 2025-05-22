@@ -55,7 +55,6 @@ int collision2obj(char *binfilename, unsigned int binoffset, char *objfilename, 
    FILE *fobj;
    long in_size;
    unsigned int vcount;
-   unsigned int tcount;
    unsigned int cur_tcount;
    unsigned int terrain;
    unsigned int v_per_t;
@@ -98,11 +97,10 @@ int collision2obj(char *binfilename, unsigned int binoffset, char *objfilename, 
       fprintf(fobj, "v %f %f %f\n", (float)x/scale, (float)y/scale, (float)z/scale);
    }
    offset += vcount*6;
-   tcount = 0;
+   cur_tcount = 0;
    processing = 1;
    while (processing) {
       terrain = read_u16_be(&data[offset]);
-      cur_tcount = read_u16_be(&data[offset+2]);
       // 0041 indicates the end, followed by 0042 or 0043
       if (terrain == 0x41 || terrain > 0xFF) {
          processing = 0;
@@ -132,11 +130,8 @@ int collision2obj(char *binfilename, unsigned int binoffset, char *objfilename, 
          vidx[2] = read_u16_be(&data[offset + i*v_per_t*2+4]);
          fprintf(fobj, "f %d %d %d\n", vidx[0]+1, vidx[1]+1, vidx[2]+1);
       }
-      tcount += cur_tcount;
       offset += cur_tcount*v_per_t*2;
    }
-
-   fclose(fobj);
    free(data);
 
    ret_len = offset - binoffset;

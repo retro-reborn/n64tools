@@ -3,8 +3,8 @@ TARGET = example1.bin
 BIN_DIR = ./bin
 
 AS = armips
-MIO0 = ../../mio0
-N64GRAPHICS = ../../n64graphics
+MIO0 = ../../bin/mio0
+N64GRAPHICS = ../../bin/n64graphics
 
 # targets
 

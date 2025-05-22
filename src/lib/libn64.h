@@ -1,5 +1,5 @@
-#ifndef LIBSM64_H_
-#define LIBSM64_H_
+#ifndef LIBN64_H_
+#define LIBN64_H_
 
 #define MIO0_DIR "mio0files"
 
@@ -60,4 +60,4 @@ void sm64_decompress_mio0(const sm64_config *config,
 // checksums are written into the buffer
 void sm64_update_checksums(unsigned char *buf);
 
-#endif // LIBSM64_H_
+#endif // LIBN64_H_

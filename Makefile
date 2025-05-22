@@ -1,72 +1,17 @@
 ################ Target Executable and Sources ###############
 
-SM64_LIB        := libsm64.a
-COMPRESS_TARGET := sm64compress
-CKSUM_TARGET    := n64cksum
-DISASM_TARGET   := mipsdisasm
-EXTEND_TARGET   := sm64extend
-F3D_TARGET      := f3d
-F3D2OBJ_TARGET  := f3d2obj
-GEO_TARGET      := sm64geo
-GRAPHICS_TARGET := n64graphics
-MIO0_TARGET     := mio0
-SPLIT_TARGET    := n64split
-WALK_TARGET     := sm64walk
+# Define output directory structure
+OBJ_DIR  = ./obj
+BIN_DIR  = ./bin
+SPLIT_DIR = $(OBJ_DIR)/n64split
 
-LIB_SRC_FILES  := libmio0.c    \
-				  libsm64.c    \
-				  libsfx.c     \
-				  utils.c
+# Define library
+SM64_LIB := libn64.a
 
-CKSUM_SRC_FILES := n64cksum.c
+# Define all targets
+TARGETS := sm64compress n64cksum mipsdisasm sm64extend f3d f3d2obj sm64geo n64graphics mio0 n64split sm64walk
 
-COMPRESS_SRC_FILES := sm64compress.c
-
-DISASM_SRC_FILES := mipsdisasm.c \
-					utils.c
-
-EXTEND_SRC_FILES := sm64extend.c
-
-F3D_SRC_FILES := f3d.c \
-				 utils.c
-
-F3D2OBJ_SRC_FILES := blast.c \
-					 f3d2obj.c \
-					 n64graphics.c \
-					 utils.c
-
-GEO_SRC_FILES := sm64geo.c \
-				 utils.c
-
-GRAPHICS_SRC_FILES := n64graphics.c \
-					  utils.c
-
-MI0_SRC_FILES := libmio0.c \
-				 libmio0.h
-
-SPLIT_SRC_FILES := blast.c \
-				   libmio0.c \
-				   libsfx.c \
-				   mipsdisasm.c \
-				   n64graphics.c \
-				   n64split/n64split.c \
-				   n64split/n64split.sm64.geo.c \
-				   n64split/n64split.sm64.behavior.c \
-				   n64split/n64split.sm64.collision.c \
-				   n64split/n64split.sound.c \
-				   strutils.c \
-				   utils.c \
-				   yamlconfig.c
-
-WALK_SRC_FILES := sm64walk.c
-
-OBJ_DIR     = ./obj
-BIN_DIR     = ./bin
-SPLIT_DIR   = $(OBJ_DIR)/n64split
-
-##################### OS Detection ###########################
-
-# Detect operating system
+# OS Detection
 ifeq ($(OS),Windows_NT)
 	DETECTED_OS := windows
 	EXT := .exe
@@ -92,24 +37,14 @@ endif
 
 ##################### Compiler Options #######################
 
-# Set cross compiler for Windows if building on other platforms
-ifeq ($(DETECTED_OS),windows)
-	# Use default system compiler on Windows
-	CROSS :=
-else
-	# Uncomment if you want to cross-compile for Windows
-	#WIN64_CROSS := x86_64-w64-mingw32-
-	#WIN32_CROSS := i686-w64-mingw32-
-	#CROSS := $(WIN64_CROSS)
-	CROSS :=
-endif
+# Compiler setup
+CC      = $(CROSS)gcc
+LD      = $(CC)
+AR      = $(CROSS)ar
 
-CC        = $(CROSS)gcc
-LD        = $(CC)
-AR        = $(CROSS)ar
-
-INCLUDES  = -I. -I./ext
-DEFS      = 
+# Common compilation flags
+INCLUDES = -I. -I./ext -Isrc -Isrc/lib -Isrc/utils -Isrc/n64split -Isrc/mipsdisasm -Isrc/n64graphics -Isrc/mio0
+CFLAGS   = -Wall -Wextra -O3 -ffunction-sections -fdata-sections $(INCLUDES) $(DEFS) -MMD
 
 # OS-specific linker flags
 ifeq ($(DETECTED_OS),macos)
@@ -118,143 +53,132 @@ else
 	LDFLAGS = -s -Wl,--gc-sections
 endif
 
-# Release flags
-CFLAGS    = -Wall -Wextra -O2 -ffunction-sections -fdata-sections $(INCLUDES) $(DEFS) -MMD
-
-# Debug flags
-#CFLAGS    = -Wall -Wextra -O0 -g $(INCLUDES) $(DEFS) -MMD
-#LDFLAGS   =
-
+# Libraries
 LIBS      = 
 SPLIT_LIBS = -lcapstone -lyaml -lz
 
-LIB_OBJ_FILES = $(addprefix $(OBJ_DIR)/,$(LIB_SRC_FILES:.c=.o))
-CKSUM_OBJ_FILES = $(addprefix $(OBJ_DIR)/,$(CKSUM_SRC_FILES:.c=.o))
-COMPRESS_OBJ_FILES = $(addprefix $(OBJ_DIR)/,$(COMPRESS_SRC_FILES:.c=.o))
-EXTEND_OBJ_FILES = $(addprefix $(OBJ_DIR)/,$(EXTEND_SRC_FILES:.c=.o))
-F3D_OBJ_FILES = $(addprefix $(OBJ_DIR)/,$(F3D_SRC_FILES:.c=.o))
-F3D2OBJ_OBJ_FILES = $(addprefix $(OBJ_DIR)/,$(F3D2OBJ_SRC_FILES:.c=.o))
-GEO_OBJ_FILES = $(addprefix $(OBJ_DIR)/,$(GEO_SRC_FILES:.c=.o))
-MI0_OBJ_FILES = $(addprefix $(OBJ_DIR)/,$(MI0_SRC_FILES:.c=.o))
-SPLIT_OBJ_FILES = $(addprefix $(OBJ_DIR)/,$(SPLIT_SRC_FILES:.c=.o))
-WALK_OBJ_FILES = $(addprefix $(OBJ_DIR)/,$(WALK_SRC_FILES:.c=.o))
-OBJ_FILES = $(LIB_OBJ_FILES) $(CKSUM_OBJ_FILES) $(COMPRESS_OBJ_FILES) \
-			$(EXTEND_OBJ_FILES) $(F3D_OBJ_FILES) $(F3D2OBJ_OBJ_FILES) \
-			$(GEO_OBJ_FILES) $(MI0_OBJ_FILES) $(SPLIT_OBJ_FILES) \
-			$(WALK_OBJ_FILES)
-DEP_FILES = $(OBJ_FILES:.o=.d)
+################### Source Definitions #######################
 
-######################## Targets #############################
+# Common utility sources used by multiple targets
+UTILS_SRC = src/utils/utils.c
+
+# Define source files for each target
+LIB_SRC  := src/mio0/libmio0.c src/lib/libn64.c src/lib/libsfx.c $(UTILS_SRC)
+
+n64cksum_SRC := src/n64cksum/n64cksum.c
+
+sm64compress_SRC := src/sm64compress/sm64compress.c
+
+mipsdisasm_SRC := src/mipsdisasm/mipsdisasm.c $(UTILS_SRC)
+
+sm64extend_SRC := src/sm64extend/sm64extend.c
+
+f3d_SRC := src/f3d/f3d.c $(UTILS_SRC)
+
+f3d2obj_SRC := src/lib/blast.c src/f3d2obj/f3d2obj.c src/n64graphics/n64graphics.c $(UTILS_SRC)
+
+sm64geo_SRC := src/sm64geo/sm64geo.c $(UTILS_SRC)
+
+n64graphics_SRC := src/n64graphics/n64graphics.c $(UTILS_SRC)
+
+mio0_SRC := src/mio0/libmio0.c src/mio0/libmio0.h
+
+n64split_SRC := src/lib/blast.c src/mio0/libmio0.c src/lib/libsfx.c \
+			   src/mipsdisasm/mipsdisasm.c src/n64graphics/n64graphics.c \
+			   src/n64split/n64split.c src/n64split/n64split.sm64.geo.c \
+			   src/n64split/n64split.sm64.behavior.c src/n64split/n64split.sm64.collision.c \
+			   src/n64split/n64split.sound.c src/utils/strutils.c \
+			   $(UTILS_SRC) src/utils/yamlconfig.c
+
+sm64walk_SRC := src/sm64walk/sm64walk.c
+
+# Convert source files to object files
+LIB_OBJS = $(addprefix $(OBJ_DIR)/,$(LIB_SRC:.c=.o))
+
+##################### Build Rules ###########################
 
 default: all
 
-all: $(EXTEND_TARGET) $(COMPRESS_TARGET) $(MIO0_TARGET) $(CKSUM_TARGET) \
-	 $(SPLIT_TARGET) $(F3D_TARGET) $(F3D2OBJ_TARGET) $(GRAPHICS_TARGET) \
-	 $(DISASM_TARGET) $(GEO_TARGET) $(WALK_TARGET)
+all: $(addprefix $(BIN_DIR)/,$(addsuffix $(EXT),$(TARGETS)))
 
+# General rule for object files
 $(OBJ_DIR)/%.o: %.c
-	@[ -d $(OBJ_DIR) ] || $(MKDIR) $(OBJ_DIR)
+	@$(MKDIR) $(dir $@)
 	@[ -d $(BIN_DIR) ] || $(MKDIR) $(BIN_DIR)
-	@[ -d $(SPLIT_DIR) ] || $(MKDIR) $(SPLIT_DIR)
 	$(CC) $(CFLAGS) -o $@ -c $<
 
 # Special rules for files that need external libraries
-$(OBJ_DIR)/mipsdisasm.o: mipsdisasm.c
-	@[ -d $(OBJ_DIR) ] || $(MKDIR) $(OBJ_DIR)
+$(OBJ_DIR)/src/mipsdisasm/mipsdisasm.o: src/mipsdisasm/mipsdisasm.c
+	@$(MKDIR) $(dir $@)
 	$(CC) $(CFLAGS) -I$(BREW_PREFIX)/include -o $@ -c $<
 
-$(OBJ_DIR)/n64graphics.o: n64graphics.c
-	@[ -d $(OBJ_DIR) ] || $(MKDIR) $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $@ -c $<
-
-$(OBJ_DIR)/yamlconfig.o: yamlconfig.c
-	@[ -d $(OBJ_DIR) ] || $(MKDIR) $(OBJ_DIR)
+$(OBJ_DIR)/src/utils/yamlconfig.o: src/utils/yamlconfig.c
+	@$(MKDIR) $(dir $@)
 	$(CC) $(CFLAGS) -I$(BREW_PREFIX)/include -o $@ -c $<
 
-$(SM64_LIB): $(LIB_OBJ_FILES)
-	$(RM) $@
+# Build library
+$(SM64_LIB): $(LIB_OBJS)
 	$(AR) rcs $@ $^
 
-$(CKSUM_TARGET): $(CKSUM_OBJ_FILES) $(SM64_LIB)
-	$(LD) $(LDFLAGS) -o $(BIN_DIR)/$@$(EXT) $^ $(LIBS)
+# Rules for each target
+$(BIN_DIR)/n64cksum$(EXT): $(addprefix $(OBJ_DIR)/,$(n64cksum_SRC:.c=.o)) $(SM64_LIB)
+	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
-$(COMPRESS_TARGET): $(COMPRESS_OBJ_FILES) $(SM64_LIB)
-	$(LD) $(LDFLAGS) -o $(BIN_DIR)/$@$(EXT) $^ $(LIBS)
+$(BIN_DIR)/sm64compress$(EXT): $(addprefix $(OBJ_DIR)/,$(sm64compress_SRC:.c=.o)) $(SM64_LIB)
+	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
-$(EXTEND_TARGET): $(EXTEND_OBJ_FILES) $(SM64_LIB)
-	$(LD) $(LDFLAGS) -o $(BIN_DIR)/$@$(EXT) $^ $(LIBS)
+$(BIN_DIR)/sm64extend$(EXT): $(addprefix $(OBJ_DIR)/,$(sm64extend_SRC:.c=.o)) $(SM64_LIB)
+	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
-$(F3D_TARGET): $(F3D_OBJ_FILES)
-	$(LD) $(LDFLAGS) -o $(BIN_DIR)/$@$(EXT) $^
+$(BIN_DIR)/f3d$(EXT): $(addprefix $(OBJ_DIR)/,$(f3d_SRC:.c=.o))
+	$(LD) $(LDFLAGS) -o $@ $^
 
-$(F3D2OBJ_TARGET): $(F3D2OBJ_OBJ_FILES)
-	$(LD) $(LDFLAGS) -o $(BIN_DIR)/$@$(EXT) $^
+$(BIN_DIR)/f3d2obj$(EXT): $(addprefix $(OBJ_DIR)/,$(f3d2obj_SRC:.c=.o))
+	$(LD) $(LDFLAGS) -o $@ $^
 
-$(GEO_TARGET): $(GEO_OBJ_FILES)
-	$(LD) $(LDFLAGS) -o $(BIN_DIR)/$@$(EXT) $^
+$(BIN_DIR)/sm64geo$(EXT): $(addprefix $(OBJ_DIR)/,$(sm64geo_SRC:.c=.o))
+	$(LD) $(LDFLAGS) -o $@ $^
 
-$(GRAPHICS_TARGET): $(GRAPHICS_SRC_FILES)
-	$(CC) $(CFLAGS) -DN64GRAPHICS_STANDALONE $^ $(LDFLAGS) -o $(BIN_DIR)/$@$(EXT)
+$(BIN_DIR)/n64graphics$(EXT): $(n64graphics_SRC)
+	$(CC) $(CFLAGS) -DN64GRAPHICS_STANDALONE $^ $(LDFLAGS) -o $@
 
-$(MIO0_TARGET): $(MI0_SRC_FILES)
-	$(CC) $(CFLAGS) -DMIO0_STANDALONE $(LDFLAGS) -o $(BIN_DIR)/$@$(EXT) $<
+$(BIN_DIR)/mio0$(EXT): $(mio0_SRC)
+	$(CC) $(CFLAGS) -DMIO0_STANDALONE $(LDFLAGS) -o $@ $<
 
-$(DISASM_TARGET): $(DISASM_SRC_FILES)
+$(BIN_DIR)/mipsdisasm$(EXT): $(mipsdisasm_SRC)
 ifeq ($(DETECTED_OS),macos)
-	$(CC) $(CFLAGS) -I$(BREW_PREFIX)/include -DMIPSDISASM_STANDALONE $^ $(LDFLAGS) -o $(BIN_DIR)/$@$(EXT) -L$(BREW_PREFIX)/lib -lcapstone
+	$(CC) $(CFLAGS) -I$(BREW_PREFIX)/include -DMIPSDISASM_STANDALONE $^ $(LDFLAGS) -o $@ -L$(BREW_PREFIX)/lib -lcapstone
 else
-	$(CC) $(CFLAGS) -DMIPSDISASM_STANDALONE $^ $(LDFLAGS) -o $(BIN_DIR)/$@$(EXT) -lcapstone
+	$(CC) $(CFLAGS) -DMIPSDISASM_STANDALONE $^ $(LDFLAGS) -o $@ -lcapstone
 endif
 
-$(SPLIT_TARGET): $(SPLIT_OBJ_FILES)
+$(BIN_DIR)/n64split$(EXT): $(addprefix $(OBJ_DIR)/,$(n64split_SRC:.c=.o))
 ifeq ($(DETECTED_OS),macos)
-	$(LD) $(LDFLAGS) -o $(BIN_DIR)/$@$(EXT) $^ -L$(BREW_PREFIX)/lib $(SPLIT_LIBS)
+	$(LD) $(LDFLAGS) -o $@ $^ -L$(BREW_PREFIX)/lib $(SPLIT_LIBS)
 else
-	$(LD) $(LDFLAGS) -o $(BIN_DIR)/$@$(EXT) $^ $(SPLIT_LIBS)
+	$(LD) $(LDFLAGS) -o $@ $^ $(SPLIT_LIBS)
 endif
 
-$(WALK_TARGET): $(WALK_SRC_FILES) $(SM64_LIB)
-	$(CC) $(CFLAGS) -o $(BIN_DIR)/$@$(EXT) $^
+$(BIN_DIR)/sm64walk$(EXT): $(sm64walk_SRC) $(SM64_LIB)
+	$(CC) $(CFLAGS) -o $@ $^
 
-rawmips: rawmips.c utils.c
+# Utility target
+rawmips: src/mipsdisasm/rawmips.c src/utils/utils.c
 ifeq ($(DETECTED_OS),macos)
 	$(CC) $(CFLAGS) -o $(BIN_DIR)/$@$(EXT) $^ -L$(BREW_PREFIX)/lib -lcapstone
 else
 	$(CC) $(CFLAGS) -o $(BIN_DIR)/$@$(EXT) $^ -lcapstone
 endif
 
+# Clean target
 clean:
-	$(RM) $(OBJ_FILES) $(DEP_FILES) $(SM64_LIB)
-	$(RM) $(BIN_DIR)/$(CKSUM_TARGET)$(EXT)
-	$(RM) $(BIN_DIR)/$(COMPRESS_TARGET)$(EXT)
-	$(RM) $(BIN_DIR)/$(DISASM_TARGET)$(EXT)
-	$(RM) $(BIN_DIR)/$(EXTEND_TARGET)$(EXT)
-	$(RM) $(BIN_DIR)/$(F3D_TARGET)$(EXT)
-	$(RM) $(BIN_DIR)/$(F3D2OBJ_TARGET)$(EXT)
-	$(RM) $(BIN_DIR)/$(GEO_TARGET)$(EXT)
-	$(RM) $(BIN_DIR)/$(MIO0_TARGET)$(EXT)
-	$(RM) $(BIN_DIR)/$(GRAPHICS_TARGET)$(EXT)
-	$(RM) $(BIN_DIR)/$(SPLIT_TARGET)$(EXT)
-	$(RM) $(BIN_DIR)/$(WALK_TARGET)$(EXT)
-	$(RM) *.d
-ifeq ($(DETECTED_OS),windows)
-	if exist $(SPLIT_DIR) $(RMDIR) $(SPLIT_DIR)
-	if exist $(OBJ_DIR) $(RMDIR) $(OBJ_DIR)
-	if exist $(BIN_DIR) $(RMDIR) $(BIN_DIR)
-else
-ifeq ($(DETECTED_OS),macos)
-	-@[ -d $(SPLIT_DIR) ] && rmdir $(SPLIT_DIR) 2>/dev/null || true
-	-@[ -d $(OBJ_DIR) ] && rmdir $(OBJ_DIR) 2>/dev/null || true
-	-@[ -d $(BIN_DIR) ] && rmdir $(BIN_DIR) 2>/dev/null || true
-else
-	-@[ -d $(SPLIT_DIR) ] && rmdir --ignore-fail-on-non-empty $(SPLIT_DIR) || true
-	-@[ -d $(OBJ_DIR) ] && rmdir --ignore-fail-on-non-empty $(OBJ_DIR) || true
-	-@[ -d $(BIN_DIR) ] && rmdir --ignore-fail-on-non-empty $(BIN_DIR) || true
-endif
-endif
+	$(RM) $(wildcard $(OBJ_DIR)/*/*.o) $(wildcard $(OBJ_DIR)/*/*.d) $(SM64_LIB)
+	$(RM) $(addprefix $(BIN_DIR)/,$(addsuffix $(EXT),$(TARGETS)))
+	-@[ -d $(SPLIT_DIR) ] && $(RMDIR) $(SPLIT_DIR) 2>/dev/null || true
+	-@[ -d $(OBJ_DIR) ] && $(RMDIR) $(OBJ_DIR) 2>/dev/null || true
+	-@[ -d $(BIN_DIR) ] && $(RMDIR) $(BIN_DIR) 2>/dev/null || true
 
 .PHONY: all clean default
 
-#################### Dependency Files ########################
-
--include $(DEP_FILES)
+# Include dependency files
+-include $(wildcard $(OBJ_DIR)/*/*.d)

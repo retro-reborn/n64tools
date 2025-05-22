@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../libmio0.h"
-#include "../n64graphics.h"
-#include "../utils.h"
+#include "../src/mio0/libmio0.h"
+#include "../n64graphics/n64graphics.h"
+#include "../utils/utils.h"
 
 #define MK64KARTS_VERSION "0.2"
 
