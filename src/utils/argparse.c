@@ -422,6 +422,37 @@ int argparse_parse(arg_parser *parser, int argc, char *argv[]) {
   return 0;
 }
 
+/* Helper function to calculate option width dynamically */
+static int calculate_option_width(char short_flag, const char *long_flag, 
+                                  arg_type type, const char *meta) {
+  int width = 0;
+
+  /* Calculate width for short flag */
+  if (short_flag != '\0') {
+    width += 2; /* -f */
+
+    if (type != ARG_TYPE_NONE && meta != NULL) {
+      width += 1 + strlen(meta); /* -f META */
+    }
+  }
+
+  /* Add space between short and long flags */
+  if (short_flag != '\0' && long_flag != NULL) {
+    width += 2; /* ", " */
+  }
+
+  /* Calculate width for long flag */
+  if (long_flag != NULL) {
+    width += 2 + strlen(long_flag); /* --flag */
+
+    if (type != ARG_TYPE_NONE && meta != NULL) {
+      width += 1 + strlen(meta); /* --flag META */
+    }
+  }
+
+  return width;
+}
+
 /* Print usage and help information */
 void argparse_print_help(arg_parser *parser, FILE *out) {
   int i;
@@ -431,34 +462,25 @@ void argparse_print_help(arg_parser *parser, FILE *out) {
     return;
   }
 
-  /* Calculate the maximum width of the option column */
+  /* Calculate the maximum width of the option column dynamically */
+  /* Check built-in help flag */
+  int help_width = calculate_option_width('h', "help", ARG_TYPE_NONE, NULL);
+  if (help_width > max_option_width) {
+    max_option_width = help_width;
+  }
+  
+  /* Check built-in version flag */
+  int version_width = calculate_option_width('V', "version", ARG_TYPE_NONE, NULL);
+  if (version_width > max_option_width) {
+    max_option_width = version_width;
+  }
+  
+  /* Check all user-defined flags */
   for (i = 0; i < parser->flag_count; i++) {
-    int width = 0;
-
-    /* Calculate width for short flag */
-    if (parser->flags[i].short_flag != '\0') {
-      width += 2; /* -f */
-
-      if (parser->flags[i].type != ARG_TYPE_NONE) {
-        width += 1 + strlen(parser->flags[i].meta); /* -f META */
-      }
-    }
-
-    /* Add space between short and long flags */
-    if (parser->flags[i].short_flag != '\0' &&
-        parser->flags[i].long_flag != NULL) {
-      width += 2; /* ", " */
-    }
-
-    /* Calculate width for long flag */
-    if (parser->flags[i].long_flag != NULL) {
-      width += 2 + strlen(parser->flags[i].long_flag); /* --flag */
-
-      if (parser->flags[i].type != ARG_TYPE_NONE) {
-        width += 1 + strlen(parser->flags[i].meta); /* --flag META */
-      }
-    }
-
+    int width = calculate_option_width(parser->flags[i].short_flag,
+                                       parser->flags[i].long_flag,
+                                       parser->flags[i].type,
+                                       parser->flags[i].meta);
     if (width > max_option_width) {
       max_option_width = width;
     }
@@ -496,33 +518,34 @@ void argparse_print_help(arg_parser *parser, FILE *out) {
 
     /* First print -h/--help */
     fprintf(out, "  -h, --help");
-    for (i = 0; i < max_option_width - 10; i++) {
+    for (i = 0; i < max_option_width - help_width; i++) {
       fprintf(out, " ");
     }
     fprintf(out, "Show this help message and exit\n");
 
     /* Then print -V/--version */
     fprintf(out, "  -V, --version");
-    for (i = 0; i < max_option_width - 13; i++) {
+    for (i = 0; i < max_option_width - version_width; i++) {
       fprintf(out, " ");
     }
     fprintf(out, "Show version information and exit\n");
 
     /* Then print all other flags */
     for (i = 0; i < parser->flag_count; i++) {
-      int width = 0;
+      /* Calculate width using the helper function */
+      int width = calculate_option_width(parser->flags[i].short_flag,
+                                         parser->flags[i].long_flag,
+                                         parser->flags[i].type,
+                                         parser->flags[i].meta);
 
       fprintf(out, "  ");
-      width += 2;
 
       /* Print short flag */
       if (parser->flags[i].short_flag != '\0') {
         fprintf(out, "-%c", parser->flags[i].short_flag);
-        width += 2;
 
         if (parser->flags[i].type != ARG_TYPE_NONE) {
           fprintf(out, " %s", parser->flags[i].meta);
-          width += 1 + strlen(parser->flags[i].meta);
         }
       }
 
@@ -530,22 +553,23 @@ void argparse_print_help(arg_parser *parser, FILE *out) {
       if (parser->flags[i].short_flag != '\0' &&
           parser->flags[i].long_flag != NULL) {
         fprintf(out, ", ");
-        width += 2;
       }
 
       /* Print long flag */
       if (parser->flags[i].long_flag != NULL) {
         fprintf(out, "--%s", parser->flags[i].long_flag);
-        width += 2 + strlen(parser->flags[i].long_flag);
 
         if (parser->flags[i].type != ARG_TYPE_NONE) {
           fprintf(out, " %s", parser->flags[i].meta);
-          width += 1 + strlen(parser->flags[i].meta);
         }
       }
 
-      /* Add padding */
-      for (int j = 0; j < max_option_width - width; j++) {
+      /* Add padding - ensure at least 2 spaces before help text */
+      int padding_needed = max_option_width - width;
+      if (padding_needed < 2) {
+        padding_needed = 2;
+      }
+      for (int j = 0; j < padding_needed; j++) {
         fprintf(out, " ");
       }
 

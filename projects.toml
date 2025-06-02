@@ -28,7 +28,7 @@ lib_sources = ["src/mio0/libmio0.c", "src/lib/libn64.c", "src/lib/libsfx.c"]
 
 # Library definitions
 [libraries]
-[libraries.sm64_lib]
+[libraries.n64_lib]
 name = "libn64.a"
 sources = [
     "src/mio0/libmio0.c",
@@ -47,21 +47,6 @@ sources = ["src/n64cksum/n64cksum.c"]
 build_type = "lib_link"
 description = "N64 ROM checksum calculator"
 
-[projects.sm64compress]
-sources = ["src/sm64compress/sm64compress.c"]
-build_type = "lib_link"
-description = "SM64 ROM compression tool"
-
-[projects.sm64extend]
-sources = ["src/sm64extend/sm64extend.c"]
-build_type = "lib_link"
-description = "SM64 ROM extension tool"
-
-[projects.sm64walk]
-sources = ["src/sm64walk/sm64walk.c", "$utils"]
-build_type = "lib_link"
-description = "SM64 ROM walker/analyzer"
-
 # Projects that build with object files but no library
 [projects.f3d]
 sources = ["src/f3d/f3d.c", "$utils"]
@@ -77,11 +62,6 @@ sources = [
 ]
 build_type = "object_link"
 description = "F3D to OBJ converter"
-
-[projects.sm64geo]
-sources = ["src/sm64geo/sm64geo.c", "$utils"]
-build_type = "object_link"
-description = "SM64 geometry processor"
 
 [projects.n64header]
 sources = ["src/n64header/n64header.c", "$utils"]
@@ -117,10 +97,8 @@ sources = [
     "src/mipsdisasm/mipsdisasm.c",
     "src/n64graphics/n64graphics.c",
     "src/n64split/n64split.c",
-    "src/n64split/n64split.sm64.geo.c",
-    "src/n64split/n64split.sm64.behavior.c",
-    "src/n64split/n64split.sm64.collision.c",
     "src/n64split/n64split.sound.c",
+    "src/n64split/n64split.stubs.c",
     "src/utils/strutils.c",
     "$utils",
     "src/utils/yamlconfig.c",

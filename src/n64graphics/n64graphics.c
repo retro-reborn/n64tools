@@ -585,11 +585,11 @@ static int parse_arguments(int argc, char *argv[], graphics_config *config) {
                     &format_index, false, format_options,
                     sizeof(format_options) / sizeof(format_options[0]));
 
-  argparse_add_flag(parser, 'w', "width", ARG_TYPE_INT,
+  argparse_add_flag(parser, 'W', "width", ARG_TYPE_INT,
                     "width of image in pixels (default: 32)", "WIDTH",
                     &config->width, false, NULL, 0);
 
-  argparse_add_flag(parser, 'h', "height", ARG_TYPE_INT,
+  argparse_add_flag(parser, 'H', "height", ARG_TYPE_INT,
                     "height of image in pixels (default: 32)", "HEIGHT",
                     &config->height, false, NULL, 0);
 
