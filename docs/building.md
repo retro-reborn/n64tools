@@ -1,5 +1,5 @@
-# Building sm64tools
-This document contains instructions for building the sm64tools collection from source.
+# Building n64tools
+This document contains instructions for building the n64tools collection from source.
 
 ## Dependencies
 n64tools requires the following dependencies to be installed:

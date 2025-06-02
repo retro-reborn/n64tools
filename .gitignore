@@ -23,6 +23,7 @@
 # Output files
 bin/
 Makefile.generated
+symbols.txt
 
 # IDE
 .vscode/

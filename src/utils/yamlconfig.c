@@ -35,11 +35,6 @@ static const section_entry section_table[] = {
     {"tex.ia", TYPE_TEX_IA},
     {"tex.rgba", TYPE_TEX_RGBA},
     {"tex.skybox", TYPE_TEX_SKYBOX},
-    // SM64 specific sections
-    {"sm64.behavior", TYPE_SM64_BEHAVIOR},
-    {"sm64.collision", TYPE_SM64_COLLISION},
-    {"sm64.geo", TYPE_SM64_GEO},
-    {"sm64.level", TYPE_SM64_LEVEL},
 };
 // TODO would be cool to extend this dynamically with plugins
 

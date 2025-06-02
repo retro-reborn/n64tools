@@ -1,8 +1,10 @@
 # N64 Tools Project Configuration
 # This file defines all the projects that can be built by the build system
 
-[build_settings]
+#
 # Global build settings
+#
+[build_settings]
 optimization_level = 3
 warning_flags = ["-Wall", "-Wextra"]
 include_dirs = [
@@ -19,15 +21,18 @@ include_dirs = [
 output_dir = "bin"
 object_dir = "obj"
 
-# Common source groups that can be reused
+#
+# Common source groups for reuse
+#
 [source_groups]
 utils = ["src/utils/utils.c", "src/utils/argparse.c"]
 graphics = ["src/n64graphics/n64graphics.c"]
 mio0_lib = ["src/mio0/libmio0.c"]
 lib_sources = ["src/mio0/libmio0.c", "src/lib/libn64.c", "src/lib/libsfx.c"]
 
+#
 # Library definitions
-[libraries]
+#
 [libraries.n64_lib]
 name = "libn64.a"
 sources = [
@@ -38,62 +43,49 @@ sources = [
     "src/utils/argparse.c",
 ]
 
+#
 # Project definitions
+#
 [projects]
 
-# Simple projects that link with the main library
+# Library-linked projects
 [projects.n64cksum]
-sources = ["src/n64cksum/n64cksum.c"]
 build_type = "lib_link"
+sources = ["src/n64cksum/n64cksum.c"]
 description = "N64 ROM checksum calculator"
 
-# Projects that build with object files but no library
+[projects.n64convert]
+build_type = "lib_link"
+sources = ["src/n64convert/n64convert.c", "$utils"]
+
+[projects.n64symbols]
+build_type = "lib_link"
+sources = ["src/n64symbols/n64symbols.c", "$utils"]
+description = "N64 ROM symbol table generator"
+
+# Object-linked projects
 [projects.f3d]
-sources = ["src/f3d/f3d.c", "$utils"]
 build_type = "object_link"
+sources = ["src/f3d/f3d.c", "$utils"]
 description = "F3D display list processor"
 
 [projects.f3d2obj]
+build_type = "object_link"
 sources = [
     "src/lib/blast.c",
     "src/f3d2obj/f3d2obj.c",
     "src/n64graphics/n64graphics.c",
     "$utils",
 ]
-build_type = "object_link"
 description = "F3D to OBJ converter"
 
 [projects.n64header]
-sources = ["src/n64header/n64header.c", "$utils"]
 build_type = "object_link"
+sources = ["src/n64header/n64header.c", "$utils"]
 description = "N64 ROM header tool"
 
-[projects.n64convert]
-sources = ['src/n64convert/n64convert.c', '$utils']
-build_type = "lib_link"
-
-# Standalone projects that compile directly
-[projects.n64graphics]
-sources = ["src/n64graphics/n64graphics.c", "$utils"]
-build_type = "standalone"
-defines = ["-DN64GRAPHICS_STANDALONE"]
-description = "N64 graphics format converter"
-
-[projects.mio0]
-sources = ["src/mio0/libmio0.c", "$utils"]
-build_type = "standalone"
-defines = ["-DMIO0_STANDALONE"]
-description = "MIO0 compression/decompression tool"
-
-[projects.mipsdisasm]
-sources = ["src/mipsdisasm/mipsdisasm.c", "$utils"]
-build_type = "standalone"
-defines = ["-DMIPSDISASM_STANDALONE"]
-external_libs = ["capstone"]
-description = "MIPS disassembler"
-
-# Complex project with many sources
 [projects.n64split]
+build_type = "object_link"
 sources = [
     "src/lib/blast.c",
     "src/mio0/libmio0.c",
@@ -107,10 +99,29 @@ sources = [
     "$utils",
     "src/utils/yamlconfig.c",
 ]
-build_type = "object_link"
 external_libs = ["capstone", "yaml", "z"]
 description = "N64 ROM splitter and analyzer"
 
 [projects.n64split.special_compile_flags]
 "src/mipsdisasm/mipsdisasm.c" = ["-I$(BREW_PREFIX)/include"]
 "src/utils/yamlconfig.c" = ["-I$(BREW_PREFIX)/include"]
+
+# Standalone projects
+[projects.n64graphics]
+build_type = "standalone"
+sources = ["src/n64graphics/n64graphics.c", "$utils"]
+defines = ["-DN64GRAPHICS_STANDALONE"]
+description = "N64 graphics format converter"
+
+[projects.mio0]
+build_type = "standalone"
+sources = ["src/mio0/libmio0.c", "$utils"]
+defines = ["-DMIO0_STANDALONE"]
+description = "MIO0 compression/decompression tool"
+
+[projects.mipsdisasm]
+build_type = "standalone"
+sources = ["src/mipsdisasm/mipsdisasm.c", "$utils"]
+defines = ["-DMIPSDISASM_STANDALONE"]
+external_libs = ["capstone"]
+description = "MIPS disassembler"

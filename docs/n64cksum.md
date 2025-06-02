@@ -36,5 +36,3 @@ This tool calculates both checksums according to the official Nintendo algorithm
 
 ## Related Tools
 - `n64split`: Uses n64cksum functionality to ensure valid ROMs after splitting
-- `sm64extend`: Uses n64cksum functionality to ensure valid ROMs after modification
-- `sm64compress`: Uses n64cksum functionality to ensure valid ROMs after modification
