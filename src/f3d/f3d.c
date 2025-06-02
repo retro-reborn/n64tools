@@ -1,10 +1,10 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
 
-#include "utils.h"
 #include "argparse.h"
+#include "utils.h"
 
 #define F3D_VERSION "0.2"
 
@@ -230,32 +230,34 @@ static int parse_arguments(int argc, char *argv[], arg_config *config) {
   }
 
   // Add the length flag
-  argparse_add_flag(parser, 'l', "length", ARG_TYPE_UINT, 
-                   "length of data to decode in bytes (default: length of file)",
-                   "LENGTH", &config->length, false, NULL, 0);
+  argparse_add_flag(
+      parser, 'l', "length", ARG_TYPE_UINT,
+      "length of data to decode in bytes (default: length of file)", "LENGTH",
+      &config->length, false, NULL, 0);
 
   // Add the offset flag
   argparse_add_flag(parser, 'o', "offset", ARG_TYPE_UINT,
-                   "starting offset in FILE (default: 0)",
-                   "OFFSET", &config->offset, false, NULL, 0);
+                    "starting offset in FILE (default: 0)", "OFFSET",
+                    &config->offset, false, NULL, 0);
 
   // Add verbose flag
   argparse_add_flag(parser, 'v', "verbose", ARG_TYPE_NONE,
-                   "verbose progress output", NULL, &g_verbosity, false, NULL, 0);
+                    "verbose progress output", NULL, &g_verbosity, false, NULL,
+                    0);
 
   // Add positional arguments
-  argparse_add_positional(parser, "FILE", "input file", 
-                         ARG_TYPE_STRING, &config->in_filename, true);
-  
+  argparse_add_positional(parser, "FILE", "input file", ARG_TYPE_STRING,
+                          &config->in_filename, true);
+
   argparse_add_positional(parser, "OUTPUT", "output file (default: stdout)",
-                         ARG_TYPE_STRING, &config->out_filename, false);
+                          ARG_TYPE_STRING, &config->out_filename, false);
 
   // Parse the arguments
   result = argparse_parse(parser, argc, argv);
-  
+
   // Free the parser
   argparse_free(parser);
-  
+
   return result;
 }
 
@@ -269,12 +271,12 @@ int main(int argc, char *argv[]) {
 
   // Initialize configuration with defaults
   config = default_config;
-  
+
   // Parse command line arguments
   if (parse_arguments(argc, argv, &config) != 0) {
     return EXIT_FAILURE;
   }
-  
+
   // Setup output file
   if (config.out_filename == NULL) {
     fout = stdout;

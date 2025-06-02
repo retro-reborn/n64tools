@@ -1,15 +1,15 @@
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
 
 #include <capstone/capstone.h>
 
+#include "argparse.h"
 #include "mipsdisasm.h"
 #include "utils.h"
-#include "argparse.h"
 
 #define MIPSDISASM_VERSION "0.2+"
 
@@ -796,59 +796,60 @@ static int parse_arguments(int argc, char *argv[], arg_config *config) {
 
   // Add flag arguments
   argparse_add_flag(parser, 'o', "output", ARG_TYPE_STRING,
-                   "output filename (default: stdout)",
-                   "OUTPUT", &config->output_file, false, NULL, 0);
-  
+                    "output filename (default: stdout)", "OUTPUT",
+                    &config->output_file, false, NULL, 0);
+
   argparse_add_flag(parser, 'p', "pseudo", ARG_TYPE_NONE,
-                   "emit pseudoinstructions for related instructions",
-                   NULL, &config->merge_pseudo, false, NULL, 0);
-  
+                    "emit pseudoinstructions for related instructions", NULL,
+                    &config->merge_pseudo, false, NULL, 0);
+
   argparse_add_flag(parser, 's', "syntax", ARG_TYPE_ENUM,
-                   "assembler syntax to use [gas, armips] (default: gas)",
-                   "SYNTAX", &config->syntax, false, syntax_values, 2);
-  
+                    "assembler syntax to use [gas, armips] (default: gas)",
+                    "SYNTAX", &config->syntax, false, syntax_values, 2);
+
   argparse_add_flag(parser, 'v', "verbose", ARG_TYPE_NONE,
-                   "verbose progress output",
-                   NULL, &g_verbosity, false, NULL, 0);
+                    "verbose progress output", NULL, &g_verbosity, false, NULL,
+                    0);
 
   // Add positional arguments
-  argparse_add_positional(parser, "FILE", "input binary file to disassemble", 
-                         ARG_TYPE_STRING, &config->input_file, true);
-  
+  argparse_add_positional(parser, "FILE", "input binary file to disassemble",
+                          ARG_TYPE_STRING, &config->input_file, true);
+
   // Set usage suffix to explain ranges
-  argparse_set_usage_suffix(parser, "[RANGES]\n"
-                           "    [RANGES]     optional list of ranges (default: entire input file)\n"
-                           "                 format: <VAddr>:[<Start>-<End>] or <VAddr>:[<Start>+<Length>]\n"
-                           "                 example: 0x80246000:0x1000-0x0E6258");
+  argparse_set_usage_suffix(
+      parser,
+      "[RANGES]\n"
+      "    [RANGES]     optional list of ranges (default: entire input file)\n"
+      "                 format: <VAddr>:[<Start>-<End>] or "
+      "<VAddr>:[<Start>+<Length>]\n"
+      "                 example: 0x80246000:0x1000-0x0E6258");
 
   // Parse the arguments
   result = argparse_parse(parser, argc, argv);
-  
+
   // Handle ranges manually since they're a variable number of arguments
   if (result == 0) {
     // Skip program name and flags with values and the input file
     int i;
     int range_count = 0;
-    
+
     // Count how many range arguments we have
     for (i = 1; i < argc; i++) {
-      if (argv[i][0] != '-' && 
-          strcmp(argv[i], config->input_file) != 0 && 
-          (i == 1 || argv[i-1][0] != '-' || 
-           (argv[i-1][1] != 'o' && argv[i-1][1] != 's'))) {
+      if (argv[i][0] != '-' && strcmp(argv[i], config->input_file) != 0 &&
+          (i == 1 || argv[i - 1][0] != '-' ||
+           (argv[i - 1][1] != 'o' && argv[i - 1][1] != 's'))) {
         range_count++;
       }
     }
-    
+
     if (range_count > 0) {
       config->ranges = malloc(range_count * sizeof(range));
       config->range_count = 0;
-      
+
       for (i = 1; i < argc; i++) {
-        if (argv[i][0] != '-' && 
-            strcmp(argv[i], config->input_file) != 0 && 
-            (i == 1 || argv[i-1][0] != '-' || 
-             (argv[i-1][1] != 'o' && argv[i-1][1] != 's'))) {
+        if (argv[i][0] != '-' && strcmp(argv[i], config->input_file) != 0 &&
+            (i == 1 || argv[i - 1][0] != '-' ||
+             (argv[i - 1][1] != 'o' && argv[i - 1][1] != 's'))) {
           range_parse(&config->ranges[config->range_count], argv[i]);
           config->range_count++;
         }
@@ -858,10 +859,10 @@ static int parse_arguments(int argc, char *argv[], arg_config *config) {
       config->range_count = 0;
     }
   }
-  
+
   // Free the parser
   argparse_free(parser);
-  
+
   return result;
 }
 
@@ -875,7 +876,7 @@ int main(int argc, char *argv[]) {
   // load defaults
   out = stdout;
   args = default_args;
-  
+
   // Parse command line arguments
   if (parse_arguments(argc, argv, &args) != 0) {
     return EXIT_FAILURE;

@@ -2,72 +2,87 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "argparse.h"
 #include "libn64.h"
 #include "utils.h"
 
 #define SM64WALK_VERSION "0.1"
 
-static void print_usage(void) {
-  ERROR("Usage: sm64walk [-o OFFSET] [-r REGION] [-v] FILE\n"
-        "\n"
-        "sm64walk v" SM64WALK_VERSION ": Super Mario 64 script walker\n"
-        "\n"
-        "Optional arguments:\n"
-        " -o OFFSET    start decoding level scripts at OFFSET (default: "
-        "auto-detect)\n"
-        " -r REGION    region to use. valid: Europe, US, JP, Shindou\n"
-        " -v           verbose progress output\n"
-        "\n"
-        "File arguments:\n"
-        " FILE        input ROM file\n");
-  exit(EXIT_FAILURE);
-}
+typedef struct {
+  char *rom_file;
+  unsigned offset;
+  char region;
+  bool verbose;
+} arg_config;
 
-// parse command line arguments
-static void parse_arguments(int argc, char *argv[], unsigned *offset,
-                            char *region, char *in_filename) {
-  int i;
-  int file_count = 0;
-  if (argc < 2) {
-    print_usage();
+static arg_config default_config = {
+    NULL,       // ROM filename
+    0xFFFFFFFF, // offset (default: auto-detect)
+    0,          // region (default: auto-detect)
+    false,      // verbose
+};
+
+// Function to parse command line arguments
+static int parse_arguments(int argc, char *argv[], arg_config *config) {
+  arg_parser *parser;
+  int result;
+  const char *regions[] = {"Europe", "US", "JP", "Shindou"};
+  char *region_str = NULL;
+
+  // Initialize the argument parser
+  parser = argparse_init("sm64walk", SM64WALK_VERSION,
+                         "Super Mario 64 script walker");
+  if (parser == NULL) {
+    ERROR("Error: Failed to initialize argument parser\n");
+    return -1;
   }
-  for (i = 1; i < argc; i++) {
-    if (argv[i][0] == '-') {
-      switch (argv[i][1]) {
-      case 'o':
-        if (++i >= argc) {
-          print_usage();
-        }
-        *offset = strtoul(argv[i], NULL, 0);
-        break;
-      case 'r':
-        if (++i >= argc) {
-          print_usage();
-        }
-        *region = argv[i][0];
-        break;
-      case 'v':
-        g_verbosity = 1;
-        break;
-      default:
-        print_usage();
-        break;
-      }
-    } else {
-      switch (file_count) {
-      case 0:
-        strcpy(in_filename, argv[i]);
-        break;
-      default: // too many
-        print_usage();
-        break;
-      }
-      file_count++;
+
+  // Add the offset option
+  argparse_add_flag(
+      parser, 'o', "offset", ARG_TYPE_UINT,
+      "Start decoding level scripts at OFFSET (default: auto-detect)", "OFFSET",
+      &config->offset, false, NULL, 0);
+
+  // Add region option with validation against the regions array
+  argparse_add_flag(parser, 'r', "region", ARG_TYPE_STRING,
+                    "Region to use. Valid: Europe, US, JP, Shindou", "REGION",
+                    &region_str, false, regions, 4);
+
+  // Add the verbose flag
+  argparse_add_flag(parser, 'v', "verbose", ARG_TYPE_NONE,
+                    "Enable verbose output", NULL, &config->verbose, false,
+                    NULL, 0);
+
+  // Add positional argument for ROM file
+  argparse_add_positional(parser, "FILE", "Input ROM file", ARG_TYPE_STRING,
+                          &config->rom_file, true);
+
+  // Parse the arguments
+  result = argparse_parse(parser, argc, argv);
+
+  // Set verbosity global flag
+  if (config->verbose) {
+    g_verbosity = 1;
+  }
+
+  // Map the region string to the corresponding character
+  if (region_str != NULL) {
+    if (strcmp(region_str, "Europe") == 0) {
+      config->region = 'E';
+    } else if (strcmp(region_str, "US") == 0) {
+      config->region = 'U';
+    } else if (strcmp(region_str, "JP") == 0) {
+      config->region = 'J';
+    } else if (strcmp(region_str, "Shindou") == 0) {
+      config->region = 'S';
     }
+    free(region_str);
   }
-  if (file_count < 1) {
-    print_usage();
-  }
+
+  // Free the parser
+  argparse_free(parser);
+
+  return result;
 }
 
 typedef struct {
@@ -356,20 +371,24 @@ static void walk_scripts(unsigned char *data, unsigned offset) {
 }
 
 int main(int argc, char *argv[]) {
-  char in_filename[FILENAME_MAX];
   unsigned char *in_buf = NULL;
-  unsigned offset = 0xFFFFFFFF;
   long in_size;
   int rom_type;
-  char region = 0;
 
-  // get configuration from arguments
-  parse_arguments(argc, argv, &offset, &region, in_filename);
+  arg_config config;
+
+  // Initialize configuration with defaults
+  config = default_config;
+
+  // Parse arguments
+  if (parse_arguments(argc, argv, &config) != 0) {
+    return EXIT_FAILURE;
+  }
 
   // read input file into memory
-  in_size = read_file(in_filename, &in_buf);
+  in_size = read_file(config.rom_file, &in_buf);
   if (in_size <= 0) {
-    ERROR("Error reading input file \"%s\"\n", in_filename);
+    ERROR("Error reading input file \"%s\"\n", config.rom_file);
     exit(EXIT_FAILURE);
   }
 
@@ -384,15 +403,15 @@ int main(int argc, char *argv[]) {
     swap_bytes(in_buf, in_size);
   }
 
-  if (offset == 0xFFFFFFFF) {
-    if (region == 0) {
-      region = detectRegion(in_buf);
+  if (config.offset == 0xFFFFFFFF) {
+    if (config.region == 0) {
+      config.region = detectRegion(in_buf);
     }
-    offset = getRegionOffset(region);
+    config.offset = getRegionOffset(config.region);
   }
 
   // walk those scripts
-  walk_scripts(in_buf, offset);
+  walk_scripts(in_buf, config.offset);
 
   // cleanup
   free(in_buf);

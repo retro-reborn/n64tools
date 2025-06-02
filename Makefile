@@ -14,7 +14,7 @@ SPLIT_DIR = $(OBJ_DIR)/n64split
 SM64_LIB := libn64.a
 
 # Define all targets
-TARGETS := sm64compress n64cksum mipsdisasm sm64extend f3d f3d2obj sm64geo n64graphics mio0 n64split sm64walk
+TARGETS := sm64compress n64cksum mipsdisasm sm64extend f3d f3d2obj sm64geo n64graphics mio0 n64split sm64walk n64header
 
 # OS Detection
 ifeq ($(OS),Windows_NT)
@@ -98,7 +98,9 @@ n64split_SRC := src/lib/blast.c src/mio0/libmio0.c src/lib/libsfx.c \
 			   src/n64split/n64split.sound.c src/utils/strutils.c \
 			   $(UTILS_SRC) src/utils/yamlconfig.c
 
-sm64walk_SRC := src/sm64walk/sm64walk.c
+sm64walk_SRC := src/sm64walk/sm64walk.c $(UTILS_SRC)
+
+n64header_SRC := src/n64header/n64header.c $(UTILS_SRC)
 
 # Convert source files to object files
 LIB_OBJS = $(addprefix $(OBJ_DIR)/,$(LIB_SRC:.c=.o))
@@ -167,8 +169,11 @@ else
 	$(LD) $(LDFLAGS) -o $@ $^ $(SPLIT_LIBS)
 endif
 
-$(BIN_DIR)/sm64walk$(EXT): $(sm64walk_SRC) $(SM64_LIB)
-	$(CC) $(CFLAGS) -o $@ $^
+$(BIN_DIR)/sm64walk$(EXT): $(addprefix $(OBJ_DIR)/,$(sm64walk_SRC:.c=.o)) $(SM64_LIB)
+	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
+
+$(BIN_DIR)/n64header$(EXT): $(addprefix $(OBJ_DIR)/,$(n64header_SRC:.c=.o))
+	$(LD) $(LDFLAGS) -o $@ $^
 
 # Utility target
 rawmips: src/mipsdisasm/rawmips.c src/utils/utils.c

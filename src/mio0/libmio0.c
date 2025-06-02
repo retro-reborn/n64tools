@@ -1,11 +1,11 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
 
+#include "argparse.h"
 #include "libmio0.h"
 #include "utils.h"
-#include "argparse.h"
 
 // defines
 
@@ -441,10 +441,11 @@ static arg_config default_config = {NULL, NULL, 0, 1};
 static int parse_arguments(int argc, char *argv[], arg_config *config) {
   arg_parser *parser;
   int result;
-  bool decompress = false;  // Use a temporary boolean for -d flag
+  bool decompress = false; // Use a temporary boolean for -d flag
 
   // Initialize the argument parser
-  parser = argparse_init("mio0", MIO0_VERSION, "MIO0 compression and decompression tool");
+  parser = argparse_init("mio0", MIO0_VERSION,
+                         "MIO0 compression and decompression tool");
   if (parser == NULL) {
     ERROR("Error: Failed to initialize argument parser\n");
     return -1;
@@ -452,40 +453,41 @@ static int parse_arguments(int argc, char *argv[], arg_config *config) {
 
   // Add the compression/decompression flags
   argparse_add_flag(parser, 'c', "compress", ARG_TYPE_NONE,
-                   "compress raw data into MIO0 (default: compress)", 
-                   NULL, &config->compress, false, NULL, 0);
-  
+                    "compress raw data into MIO0 (default: compress)", NULL,
+                    &config->compress, false, NULL, 0);
+
   argparse_add_flag(parser, 'd', "decompress", ARG_TYPE_NONE,
-                   "decompress MIO0 into raw data",
-                   NULL, &decompress, false, NULL, 0);
+                    "decompress MIO0 into raw data", NULL, &decompress, false,
+                    NULL, 0);
 
   // Add the offset flag
   argparse_add_flag(parser, 'o', "offset", ARG_TYPE_UINT,
-                   "starting offset in FILE (default: 0)",
-                   "OFFSET", &config->offset, false, NULL, 0);
+                    "starting offset in FILE (default: 0)", "OFFSET",
+                    &config->offset, false, NULL, 0);
 
   // Add verbose flag
   argparse_add_flag(parser, 'v', "verbose", ARG_TYPE_NONE,
-                   "verbose progress output", NULL, &g_verbosity, false, NULL, 0);
+                    "verbose progress output", NULL, &g_verbosity, false, NULL,
+                    0);
 
   // Add positional arguments
-  argparse_add_positional(parser, "FILE", "input file", 
-                         ARG_TYPE_STRING, &config->in_filename, true);
-  
+  argparse_add_positional(parser, "FILE", "input file", ARG_TYPE_STRING,
+                          &config->in_filename, true);
+
   argparse_add_positional(parser, "OUTPUT", "output file (default: FILE.out)",
-                         ARG_TYPE_STRING, &config->out_filename, false);
+                          ARG_TYPE_STRING, &config->out_filename, false);
 
   // Parse the arguments
   result = argparse_parse(parser, argc, argv);
-  
+
   // Process the decompress flag (overrides compress flag)
   if (decompress) {
     config->compress = 0;
   }
-  
+
   // Free the parser
   argparse_free(parser);
-  
+
   return result;
 }
 
@@ -496,12 +498,12 @@ int main(int argc, char *argv[]) {
 
   // Initialize configuration with defaults
   config = default_config;
-  
+
   // Parse command line arguments
   if (parse_arguments(argc, argv, &config) != 0) {
     return EXIT_FAILURE;
   }
-  
+
   // If no output filename specified, generate one
   if (config.out_filename == NULL) {
     config.out_filename = out_filename;

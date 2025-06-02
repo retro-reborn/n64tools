@@ -1,7 +1,7 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
-#include <stdbool.h>
 
 #define STBI_NO_LINEAR
 #define STBI_NO_HDR
@@ -11,9 +11,9 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb/stb_image_write.h>
 
+#include "argparse.h"
 #include "n64graphics.h"
 #include "utils.h"
-#include "argparse.h"
 
 // SCALE_M_N: upscale/downscale M-bit integer to N-bit
 #define SCALE_5_8(VAL_) (((VAL_) * 0xFF) / 0x1F)
@@ -553,13 +553,15 @@ static int parse_format(graphics_config *config, const char *str) {
 static int parse_arguments(int argc, char *argv[], graphics_config *config) {
   arg_parser *parser;
   int result;
-  
+
   // Define format options for the enum
-  const char *format_options[] = {"rgba16", "rgba32", "ia1", "ia4", "ia8", "ia16", "i4", "i8", "ci8", "ci16"};
-  int format_index = 0;  // Will be set by argparse
+  const char *format_options[] = {"rgba16", "rgba32", "ia1", "ia4", "ia8",
+                                  "ia16",   "i4",     "i8",  "ci8", "ci16"};
+  int format_index = 0; // Will be set by argparse
 
   // Initialize the argument parser
-  parser = argparse_init("n64graphics", N64GRAPHICS_VERSION, "N64 graphics manipulator");
+  parser = argparse_init("n64graphics", N64GRAPHICS_VERSION,
+                         "N64 graphics manipulator");
   if (parser == NULL) {
     ERROR("Error: Failed to initialize argument parser\n");
     return -1;
@@ -567,73 +569,73 @@ static int parse_arguments(int argc, char *argv[], graphics_config *config) {
 
   // Add the export/import flags
   argparse_add_flag(parser, 'e', "export", ARG_TYPE_STRING,
-                   "export from BIN_FILE to PNG_FILE", 
-                   "BIN_FILE", &config->bin_filename, false, NULL, 0);
-  
+                    "export from BIN_FILE to PNG_FILE", "BIN_FILE",
+                    &config->bin_filename, false, NULL, 0);
+
   argparse_add_flag(parser, 'i', "import", ARG_TYPE_STRING,
-                   "import from PNG_FILE to BIN_FILE",
-                   "BIN_FILE", &config->bin_filename, false, NULL, 0);
+                    "import from PNG_FILE to BIN_FILE", "BIN_FILE",
+                    &config->bin_filename, false, NULL, 0);
 
   // Add other flags
-  argparse_add_flag(parser, 'g', "png", ARG_TYPE_STRING,
-                   "PNG image file",
-                   "PNG_FILE", &config->img_filename, false, NULL, 0);
-                   
+  argparse_add_flag(parser, 'g', "png", ARG_TYPE_STRING, "PNG image file",
+                    "PNG_FILE", &config->img_filename, false, NULL, 0);
+
   argparse_add_flag(parser, 'f', "format", ARG_TYPE_ENUM,
-                   "texture format (rgba16, ia16, i8, etc.)",
-                   "FORMAT", &format_index, false, format_options, 
-                   sizeof(format_options) / sizeof(format_options[0]));
-                   
+                    "texture format (rgba16, ia16, i8, etc.)", "FORMAT",
+                    &format_index, false, format_options,
+                    sizeof(format_options) / sizeof(format_options[0]));
+
   argparse_add_flag(parser, 'w', "width", ARG_TYPE_INT,
-                   "width of image in pixels (default: 32)",
-                   "WIDTH", &config->width, false, NULL, 0);
-                   
+                    "width of image in pixels (default: 32)", "WIDTH",
+                    &config->width, false, NULL, 0);
+
   argparse_add_flag(parser, 'h', "height", ARG_TYPE_INT,
-                   "height of image in pixels (default: 32)",
-                   "HEIGHT", &config->height, false, NULL, 0);
-                   
+                    "height of image in pixels (default: 32)", "HEIGHT",
+                    &config->height, false, NULL, 0);
+
   argparse_add_flag(parser, 'o', "offset", ARG_TYPE_UINT,
-                   "offset in output file to write to (default: 0)",
-                   "OFFSET", &config->offset, false, NULL, 0);
-                   
+                    "offset in output file to write to (default: 0)", "OFFSET",
+                    &config->offset, false, NULL, 0);
+
   argparse_add_flag(parser, 'v', "verbose", ARG_TYPE_NONE,
-                   "verbose progress output", NULL, &g_verbosity, false, NULL, 0);
+                    "verbose progress output", NULL, &g_verbosity, false, NULL,
+                    0);
 
   // Parse the arguments
   result = argparse_parse(parser, argc, argv);
-  
+
   // Process format selection
-  if (result == 0 && parser->flags[3].processed) {  // 'f' flag was used
+  if (result == 0 && parser->flags[3].processed) { // 'f' flag was used
     const char *format_str = format_options[format_index];
     if (!parse_format(config, format_str)) {
       ERROR("Error: invalid format '%s'\n", format_str);
       result = -1;
     }
   }
-  
+
   // Determine the mode based on which flags were set
-  if (parser->flags[0].processed) {  // -e flag was used
+  if (parser->flags[0].processed) { // -e flag was used
     config->mode = MODE_EXPORT;
-  } else if (parser->flags[1].processed) {  // -i flag was used
+  } else if (parser->flags[1].processed) { // -i flag was used
     config->mode = MODE_IMPORT;
   }
-  
+
   // Check for required arguments
   if (result == 0) {
     if (config->bin_filename == NULL) {
       ERROR("Error: must specify either -e BIN_FILE or -i BIN_FILE\n");
       result = -1;
     }
-    
+
     if (config->img_filename == NULL) {
       ERROR("Error: must specify -g PNG_FILE\n");
       result = -1;
     }
   }
-  
+
   // Free the parser
   argparse_free(parser);
-  
+
   return result;
 }
 
