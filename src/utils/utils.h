@@ -77,13 +77,24 @@ typedef struct {
 // global verbosity setting
 extern int g_verbosity;
 
-#define ERROR(...) fprintf(stderr, __VA_ARGS__)
+// ANSI color codes
+#define COLOR_RED     "\033[31m"
+#define COLOR_GREEN   "\033[32m"
+#define COLOR_YELLOW  "\033[33m"
+#define COLOR_BLUE    "\033[34m"
+#define COLOR_MAGENTA "\033[35m"
+#define COLOR_CYAN    "\033[36m"
+#define COLOR_RESET   "\033[0m"
+
+#define ERROR(...) fprintf(stderr, COLOR_RED "[ERROR] " COLOR_RESET __VA_ARGS__)
 #define INFO(...)                                                              \
   if (g_verbosity)                                                             \
-  printf(__VA_ARGS__)
+  printf(COLOR_CYAN "[INFO] " COLOR_RESET __VA_ARGS__)
 #define INFO_HEX(...)                                                          \
-  if (g_verbosity)                                                             \
-  print_hex(__VA_ARGS__)
+  if (g_verbosity) {                                                           \
+    printf(COLOR_CYAN "[INFO] " COLOR_RESET);                                   \
+    print_hex(__VA_ARGS__);                                                   \
+  }
 
 // functions
 

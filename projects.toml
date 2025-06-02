@@ -68,6 +68,10 @@ sources = ["src/n64header/n64header.c", "$utils"]
 build_type = "object_link"
 description = "N64 ROM header tool"
 
+[projects.n64convert]
+sources = ['src/n64convert/n64convert.c', '$utils']
+build_type = "lib_link"
+
 # Standalone projects that compile directly
 [projects.n64graphics]
 sources = ["src/n64graphics/n64graphics.c", "$utils"]
