@@ -30,8 +30,8 @@ n64graphics <command> [options] FILE
 
 ### Options for Decode
 - `-f FORMAT`: Graphics format (rgba16, rgba32, ia16, ia8, ia4, ia1, i8, i4, ci8, ci4)
-- `-w WIDTH`: Image width in pixels
-- `-h HEIGHT`: Image height in pixels
+- `-W WIDTH`: Image width in pixels
+- `-H HEIGHT`: Image height in pixels
 - `-o OFFSET`: Start offset in the input file (default: 0)
 - `-p PALETTE`: Palette file for CI formats
 
