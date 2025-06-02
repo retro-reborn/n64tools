@@ -1,0 +1,8 @@
+[project]
+name = "n64tools"
+version = "0.1.0"
+description = "Tools for working with Nintendo 64 ROMs and related files."
+authors = [{ name = "Zander Lewis", email = "zander@zanderlewis.dev" }]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["toml>=0.10.2"]

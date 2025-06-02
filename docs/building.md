@@ -22,5 +22,5 @@ sudo apt install libpng-dev libcapstone-dev libyaml-dev
 ## Building
 Building is a simple process, and can be done with the following command:
 ```bash
-make
+uv run scripts/build.py --help
 ```

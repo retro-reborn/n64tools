@@ -1,0 +1,134 @@
+# N64 Tools Project Configuration
+# This file defines all the projects that can be built by the build system
+
+[build_settings]
+# Global build settings
+optimization_level = 3
+warning_flags = ["-Wall", "-Wextra"]
+include_dirs = [
+    ".",
+    "./ext",
+    "src",
+    "src/lib",
+    "src/utils",
+    "src/n64split",
+    "src/mipsdisasm",
+    "src/n64graphics",
+    "src/mio0",
+]
+output_dir = "bin"
+object_dir = "obj"
+
+# Common source groups that can be reused
+[source_groups]
+utils = ["src/utils/utils.c", "src/utils/argparse.c"]
+graphics = ["src/n64graphics/n64graphics.c"]
+mio0_lib = ["src/mio0/libmio0.c"]
+lib_sources = ["src/mio0/libmio0.c", "src/lib/libn64.c", "src/lib/libsfx.c"]
+
+# Library definitions
+[libraries]
+[libraries.sm64_lib]
+name = "libn64.a"
+sources = [
+    "src/mio0/libmio0.c",
+    "src/lib/libn64.c",
+    "src/lib/libsfx.c",
+    "src/utils/utils.c",
+    "src/utils/argparse.c",
+]
+
+# Project definitions
+[projects]
+
+# Simple projects that link with the main library
+[projects.n64cksum]
+sources = ["src/n64cksum/n64cksum.c"]
+build_type = "lib_link"
+description = "N64 ROM checksum calculator"
+
+[projects.sm64compress]
+sources = ["src/sm64compress/sm64compress.c"]
+build_type = "lib_link"
+description = "SM64 ROM compression tool"
+
+[projects.sm64extend]
+sources = ["src/sm64extend/sm64extend.c"]
+build_type = "lib_link"
+description = "SM64 ROM extension tool"
+
+[projects.sm64walk]
+sources = ["src/sm64walk/sm64walk.c", "$utils"]
+build_type = "lib_link"
+description = "SM64 ROM walker/analyzer"
+
+# Projects that build with object files but no library
+[projects.f3d]
+sources = ["src/f3d/f3d.c", "$utils"]
+build_type = "object_link"
+description = "F3D display list processor"
+
+[projects.f3d2obj]
+sources = [
+    "src/lib/blast.c",
+    "src/f3d2obj/f3d2obj.c",
+    "src/n64graphics/n64graphics.c",
+    "$utils",
+]
+build_type = "object_link"
+description = "F3D to OBJ converter"
+
+[projects.sm64geo]
+sources = ["src/sm64geo/sm64geo.c", "$utils"]
+build_type = "object_link"
+description = "SM64 geometry processor"
+
+[projects.n64header]
+sources = ["src/n64header/n64header.c", "$utils"]
+build_type = "object_link"
+description = "N64 ROM header tool"
+
+# Standalone projects that compile directly
+[projects.n64graphics]
+sources = ["src/n64graphics/n64graphics.c", "$utils"]
+build_type = "standalone"
+defines = ["-DN64GRAPHICS_STANDALONE"]
+description = "N64 graphics format converter"
+
+[projects.mio0]
+sources = ["src/mio0/libmio0.c", "$utils"]
+build_type = "standalone"
+defines = ["-DMIO0_STANDALONE"]
+description = "MIO0 compression/decompression tool"
+
+[projects.mipsdisasm]
+sources = ["src/mipsdisasm/mipsdisasm.c", "$utils"]
+build_type = "standalone"
+defines = ["-DMIPSDISASM_STANDALONE"]
+external_libs = ["capstone"]
+description = "MIPS disassembler"
+
+# Complex project with many sources
+[projects.n64split]
+sources = [
+    "src/lib/blast.c",
+    "src/mio0/libmio0.c",
+    "src/lib/libsfx.c",
+    "src/mipsdisasm/mipsdisasm.c",
+    "src/n64graphics/n64graphics.c",
+    "src/n64split/n64split.c",
+    "src/n64split/n64split.sm64.geo.c",
+    "src/n64split/n64split.sm64.behavior.c",
+    "src/n64split/n64split.sm64.collision.c",
+    "src/n64split/n64split.sound.c",
+    "src/utils/strutils.c",
+    "$utils",
+    "src/utils/yamlconfig.c",
+]
+build_type = "object_link"
+external_libs = ["capstone", "yaml", "z"]
+description = "N64 ROM splitter and analyzer"
+
+[projects.n64split.special_compile_flags]
+"src/mipsdisasm/mipsdisasm.c" = ["-I$(BREW_PREFIX)/include"]
+"src/utils/yamlconfig.c" = ["-I$(BREW_PREFIX)/include"]
