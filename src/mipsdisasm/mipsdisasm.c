@@ -179,12 +179,26 @@ static void disassemble_block(unsigned char *data, unsigned int length,
                               int block_id) {
   asm_block *block = &state->blocks[block_id];
 
+  // Limit maximum block size to prevent memory exhaustion
+  // Maximum of 1MB or 256K instructions should be reasonable
+  const unsigned int MAX_BLOCK_SIZE = 0x100000; // 1MB
+  if (length > MAX_BLOCK_SIZE) {
+    INFO("Limiting disassembly from 0x%X to 0x%X bytes\n", length, MAX_BLOCK_SIZE);
+    length = MAX_BLOCK_SIZE;
+  }
+
   // capstone structures require a lot of data, so only request a small block at
   // a time and preserve the required data
   int remaining = length;
   int processed = 0;
   block->instruction_count = 0;
   block->instructions = calloc(length / 4, sizeof(*block->instructions));
+  
+  // Check if memory allocation succeeded
+  if (!block->instructions) {
+    ERROR("Error: Failed to allocate memory for %u instructions\n", length / 4);
+    exit(EXIT_FAILURE);
+  }
   while (remaining > 0) {
     cs_insn *insn;
     int current_len = MIN(remaining, 1024);
@@ -905,7 +919,9 @@ int main(int argc, char *argv[]) {
   if (args.range_count < 1 ||
       (args.range_count == 1 && args.ranges[0].length == 0)) {
     if (args.range_count < 1) {
-      args.ranges[0].vaddr = 0;
+      // Allocate memory for one range if none were specified
+      args.ranges = malloc(sizeof(range));
+      args.ranges[0].vaddr = args.vaddr;
     }
     args.ranges[0].start = 0;
     args.ranges[0].length = file_len;
@@ -989,6 +1005,11 @@ int main(int argc, char *argv[]) {
   }
 
   free(data);
+  
+  // Free the allocated ranges array
+  if (args.ranges) {
+    free(args.ranges);
+  }
 
   return EXIT_SUCCESS;
 }
