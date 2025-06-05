@@ -179,53 +179,135 @@ static void disassemble_block(unsigned char *data, unsigned int length,
                               int block_id) {
   asm_block *block = &state->blocks[block_id];
 
-  // Limit maximum block size to prevent memory exhaustion
-  // Maximum of 1MB or 256K instructions should be reasonable
-  const unsigned int MAX_BLOCK_SIZE = 0x100000; // 1MB
-  if (length > MAX_BLOCK_SIZE) {
-    INFO("Limiting disassembly from 0x%X to 0x%X bytes\n", length, MAX_BLOCK_SIZE);
-    length = MAX_BLOCK_SIZE;
-  }
-
-  // capstone structures require a lot of data, so only request a small block at
-  // a time and preserve the required data
-  int remaining = length;
-  int processed = 0;
-  block->instruction_count = 0;
-  block->instructions = calloc(length / 4, sizeof(*block->instructions));
+  // Process in chunks to prevent memory exhaustion and trace traps
+  const unsigned int CHUNK_SIZE = 0x8000; // 32KB chunks
   
-  // Check if memory allocation succeeded
+  unsigned int remaining = length;
+  unsigned int processed = 0;
+  block->instruction_count = 0;
+  
+  // Initialize with a reasonable initial size based on section length
+  unsigned int estimated_instructions = length / 4; // 4 bytes per instruction
+  unsigned int instruction_capacity = MIN(estimated_instructions + 256, 4096); // Cap at 4K initially
+  
+  // Safety check: don't allocate excessive memory for huge sections
+  if (instruction_capacity > 16384) { // Max 16K instructions per section initially
+    instruction_capacity = 16384;
+  }
+  
+  block->instructions = calloc(instruction_capacity, sizeof(*block->instructions));
+  
   if (!block->instructions) {
-    ERROR("Error: Failed to allocate memory for %u instructions\n", length / 4);
+    ERROR("Error: Failed to allocate memory for %u instructions\n", instruction_capacity);
     exit(EXIT_FAILURE);
   }
+
+  INFO("Processing %u bytes in chunks of %u bytes\n", length, CHUNK_SIZE);
+  
   while (remaining > 0) {
-    cs_insn *insn;
-    int current_len = MIN(remaining, 1024);
-    int count = cs_disasm(state->handle, &data[processed], current_len,
-                          vaddr + processed, 0, &insn);
-    for (int i = 0; i < count; i++) {
-      disasm_data *dis_insn =
-          &block->instructions[block->instruction_count + i];
-      dis_insn->id = insn[i].id;
-      memcpy(dis_insn->bytes, insn[i].bytes, sizeof(dis_insn->bytes));
-      strcpy(dis_insn->mnemonic, insn[i].mnemonic);
-      strcpy(dis_insn->op_str, insn[i].op_str);
-      if (insn[i].detail != NULL && insn[i].detail->mips.op_count > 0) {
-        dis_insn->op_count = insn[i].detail->mips.op_count;
-        memcpy(dis_insn->operands, insn[i].detail->mips.operands,
-               sizeof(dis_insn->operands));
-      } else {
-        dis_insn->op_count = 0;
+    unsigned int chunk_size = MIN(remaining, CHUNK_SIZE);
+    unsigned int chunk_processed = 0;
+    
+    // Process this chunk in smaller sub-chunks for capstone
+    while (chunk_processed < chunk_size) {
+      cs_insn *insn;
+      unsigned int sub_chunk_size = MIN(chunk_size - chunk_processed, 0x400); // 1KB sub-chunks
+      unsigned int current_offset = processed + chunk_processed;
+      unsigned int current_vaddr = vaddr + current_offset;
+      
+      int count = cs_disasm(state->handle, &data[current_offset], sub_chunk_size,
+                           current_vaddr, 0, &insn);
+      
+      if (count <= 0) {
+        // No instructions disassembled, skip to next chunk
+        chunk_processed += 4; // Skip one instruction worth
+        continue;
       }
-      dis_insn->is_jump =
-          cs_insn_group(state->handle, &insn[i], MIPS_GRP_JUMP) ||
-          insn[i].id == MIPS_INS_JAL || insn[i].id == MIPS_INS_BAL;
+      
+      // Check if we need to resize the instruction buffer
+      if (block->instruction_count + (unsigned int)count > instruction_capacity) {
+        unsigned int new_capacity = instruction_capacity * 2;
+        
+        // Limit to prevent excessive memory usage
+        if (new_capacity > 0x40000) { // 256K instructions max
+          new_capacity = 0x40000;
+        }
+        
+      if (new_capacity > instruction_capacity) {
+        disasm_data *new_instructions = realloc(block->instructions, 
+                                              new_capacity * sizeof(*block->instructions));
+        if (!new_instructions) {
+          ERROR("Error: Failed to reallocate memory for %u instructions\n", new_capacity);
+          // Continue with what we have rather than crashing
+          int available_space = instruction_capacity - block->instruction_count;
+          if (available_space <= 0) {
+            INFO("No space left for instructions, stopping at instruction %u\n", block->instruction_count);
+            cs_free(insn, count);
+            remaining = 0; // Force exit from outer loop
+            break;
+          }
+          // Limit count to available space
+          if (count > available_space) {
+            count = available_space;
+          }
+        } else {
+          block->instructions = new_instructions;
+          instruction_capacity = new_capacity;
+        }
+      } else {
+        // Hit memory limit, truncate
+        int available_space = instruction_capacity - block->instruction_count;
+        if (available_space <= 0) {
+          INFO("Hit instruction limit, stopping at instruction %u\n", block->instruction_count);
+          cs_free(insn, count);
+          remaining = 0; // Force exit from outer loop
+          break;
+        }
+        // Limit count to available space
+        if (count > available_space) {
+          count = available_space;
+        }
+      }
+      }
+      
+      // Copy instruction data
+      for (int i = 0; i < count; i++) {
+        disasm_data *dis_insn = &block->instructions[block->instruction_count + i];
+        dis_insn->id = insn[i].id;
+        memcpy(dis_insn->bytes, insn[i].bytes, sizeof(dis_insn->bytes));
+        
+        // Safe string copy with bounds checking to prevent buffer overflows
+        strncpy(dis_insn->mnemonic, insn[i].mnemonic, sizeof(dis_insn->mnemonic) - 1);
+        dis_insn->mnemonic[sizeof(dis_insn->mnemonic) - 1] = '\0';
+        
+        strncpy(dis_insn->op_str, insn[i].op_str, sizeof(dis_insn->op_str) - 1);
+        dis_insn->op_str[sizeof(dis_insn->op_str) - 1] = '\0';
+        if (insn[i].detail != NULL && insn[i].detail->mips.op_count > 0) {
+          dis_insn->op_count = insn[i].detail->mips.op_count;
+          memcpy(dis_insn->operands, insn[i].detail->mips.operands,
+                 sizeof(dis_insn->operands));
+        } else {
+          dis_insn->op_count = 0;
+        }
+        dis_insn->is_jump =
+            cs_insn_group(state->handle, &insn[i], MIPS_GRP_BRANCH_RELATIVE) ||
+            cs_insn_group(state->handle, &insn[i], MIPS_GRP_JUMP) ||
+            insn[i].id == MIPS_INS_JAL || insn[i].id == MIPS_INS_BAL;
+      }
+      
+      cs_free(insn, count);
+      block->instruction_count += count;
+      chunk_processed += count * 4;
     }
-    cs_free(insn, count);
-    block->instruction_count += count;
-    processed += count * 4;
-    remaining = length - processed;
+    
+    processed += chunk_size;
+    remaining -= chunk_size;
+    
+    // Show progress for large sections
+    if (length > 0x10000 && processed % 0x10000 == 0) {
+      INFO("  Processed %u/%u bytes (%.2f%%)\n", processed, length, 
+           (float)processed * 100.0f / (float)length);
+    }
   }
 
   if (block->instruction_count > 0) {
@@ -388,17 +470,30 @@ disasm_state *disasm_state_init(asm_syntax syntax, int merge_pseudo) {
 
 void disasm_state_free(disasm_state *state) {
   if (state) {
+    // Free each block's local labels and instructions
     for (int i = 0; i < state->block_count; i++) {
+      if (state->blocks[i].locals.labels) {
+        free(state->blocks[i].locals.labels);
+        state->blocks[i].locals.labels = NULL;
+      }
       if (state->blocks[i].instructions) {
         free(state->blocks[i].instructions);
         state->blocks[i].instructions = NULL;
       }
     }
+    // Free the blocks array
     if (state->blocks) {
       free(state->blocks);
       state->blocks = NULL;
     }
+    // Free global labels
+    if (state->globals.labels) {
+      free(state->globals.labels);
+      state->globals.labels = NULL;
+    }
     cs_close(&state->handle);
+    // Free the state structure itself
+    free(state);
   }
 }
 

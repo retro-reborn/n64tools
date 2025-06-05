@@ -5,6 +5,7 @@ Welcome to the n64tools documentation. This repository contains a collection of 
 - [f3d](f3d.md) - Fast3D display list decoder
 - [mio0](mio0.md) - MIO0 compressor/decompressor
 - [mipsdisasm](mipsdisasm.md) - MIPS disassembler
+- [n64autosplit](n64autosplit.md) - Automatic n64split configuration generator
 - [n64cksum](n64cksum.md) - N64 checksum generator
 - [n64graphics](n64graphics.md) - N64 graphics converter
 - [n64split](n64split.md) - N64 ROM Splitter and Build System

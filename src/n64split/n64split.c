@@ -7,9 +7,9 @@
 
 // default configuration
 static const arg_config default_args = {
-    .input_file = "",
-    .config_file = "",
-    .output_dir = "",
+    .input_file = NULL,
+    .config_file = NULL,
+    .output_dir = NULL,
     .model_scale = 1024.0f,
     .raw_texture = false,
     .large_texture = false,
@@ -1182,39 +1182,9 @@ void split_file(unsigned char *data, unsigned int length, arg_config *args,
   generate_geo_macros(args);
 }
 
-void print_usage(void) {
-  ERROR("Usage: n64split [-c CONFIG] [-k] [-m] [-o OUTPUT_DIR] [-s SCALE] [-t] "
-        "[-v] [-V] ROM\n"
-        "\n"
-        "n64split v" N64SPLIT_VERSION
-        ": N64 ROM splitter, resource ripper, disassembler\n"
-        "\n"
-        "Optional arguments:\n"
-        " -c CONFIG     ROM configuration file (default: determine from "
-        "checksum)\n"
-        " -k            keep going as much as possible after error\n"
-        " -m            merge related instructions in to pseudoinstructions\n"
-        " -o OUTPUT_DIR output directory (default: {CONFIG.basename}.split)\n"
-        " -r            output raw texture binaries\n"
-        " -s SCALE      amount to scale models by (default: %.1f)\n"
-        " -t            generate large texture for MIO0 blocks\n"
-        " -v            verbose progress output\n"
-        " -V            print version information\n"
-        "\n"
-        "File arguments:\n"
-        " ROM        input ROM file\n",
-        default_args.model_scale);
-  exit(1);
-}
-
+// Print version information
 void print_version(void) {
-  ERROR("n64split v" N64SPLIT_VERSION ", using:\n"
-        "  %s\n"
-        "  %s\n"
-        "  %s\n"
-        "  %s\n",
-        disasm_get_version(), n64graphics_get_read_version(),
-        n64graphics_get_write_version(), config_get_version());
+  printf("n64split v%s\n", N64SPLIT_VERSION);
 }
 
 // parse command line arguments
@@ -1233,7 +1203,7 @@ int parse_arguments(int argc, char *argv[], arg_config *config) {
   // Add flag arguments
   argparse_add_flag(parser, 'c', "config", ARG_TYPE_STRING,
                     "ROM configuration file (default: determine from checksum)",
-                    "CONFIG", config->config_file, false, NULL, 0);
+                    "CONFIG", &config->config_file, false, NULL, 0);
 
   argparse_add_flag(parser, 'k', "keep-going", ARG_TYPE_NONE,
                     "keep going as much as possible after error", NULL,
@@ -1245,7 +1215,7 @@ int parse_arguments(int argc, char *argv[], arg_config *config) {
 
   argparse_add_flag(parser, 'o', "output-dir", ARG_TYPE_STRING,
                     "output directory (default: {CONFIG.basename}.split)",
-                    "OUTPUT_DIR", config->output_dir, false, NULL, 0);
+                    "OUTPUT_DIR", &config->output_dir, false, NULL, 0);
 
   argparse_add_flag(parser, 'r', "raw-texture", ARG_TYPE_NONE,
                     "output raw texture binaries", NULL, &config->raw_texture,
@@ -1271,7 +1241,7 @@ int parse_arguments(int argc, char *argv[], arg_config *config) {
 
   // Add positional arguments
   argparse_add_positional(parser, "ROM", "input ROM file", ARG_TYPE_STRING,
-                          config->input_file, true);
+                          &config->input_file, true);
 
   // Parse the arguments
   result = argparse_parse(parser, argc, argv);
@@ -1345,6 +1315,26 @@ int main(int argc, char *argv[]) {
   len = read_file(args.input_file, &data);
 
   if (len <= 0) {
+    switch (len) {
+      case -1:
+        ERROR("Cannot open input ROM file: %s\n", args.input_file);
+        break;
+      case -2:
+        ERROR("Input ROM file is too large (>256MB): %s\n", args.input_file);
+        break;
+      case -3:
+        ERROR("Input ROM file is empty or invalid: %s\n", args.input_file);
+        break;
+      case -4:
+        ERROR("Out of memory reading ROM file: %s\n", args.input_file);
+        break;
+      case -5:
+        ERROR("Failed to read complete ROM file: %s\n", args.input_file);
+        break;
+      default:
+        ERROR("Unknown error reading ROM file: %s (code: %ld)\n", args.input_file, len);
+        break;
+    }
     return 2;
   }
 
@@ -1367,28 +1357,40 @@ int main(int argc, char *argv[]) {
   }
 
   // if no config file supplied, find the right one
-  if (0 == strcmp(args.config_file, "")) {
+  if (args.config_file == NULL || strlen(args.config_file) == 0) {
+    DEBUG("No config file specified, attempting auto-detection\n");
     ret_val = detect_config_file(read_u32_be(data + 0x10),
                                  read_u32_be(data + 0x14), &config);
     if (!ret_val) {
       ERROR("Error: could not find valid config file for '%s'\n",
             args.input_file);
+      ERROR("ROM checksums: %08X %08X\n", read_u32_be(data + 0x10), read_u32_be(data + 0x14));
+      ERROR("Try specifying a config file manually with -c\n");
       return 1;
     }
+    INFO("Auto-detected config file: %s\n", config.name);
   } else {
+    DEBUG("Using specified config file: %s\n", args.config_file);
     ret_val = config_parse_file(args.config_file, &config);
     if (ret_val != 0) {
+      ERROR("Failed to parse config file: %s (error code: %d)\n", args.config_file, ret_val);
       return 1;
     }
+    INFO("Successfully loaded config file: %s\n", args.config_file);
   }
 
+  DEBUG("Validating configuration against ROM size: %ld bytes\n", len);
   if (config_validate(&config, len)) {
+    ERROR("Configuration validation failed for ROM: %s\n", args.input_file);
     return 3;
   }
+  INFO("Configuration validation successful\n");
 
   // if no output directory specified, construct one from config file
-  if (0 == strcmp(args.output_dir, "")) {
-    sprintf(args.output_dir, "%s.split", config.basename);
+  if (args.output_dir == NULL || strlen(args.output_dir) == 0) {
+    char default_output_dir[FILENAME_MAX];
+    sprintf(default_output_dir, "%s.split", config.basename);
+    args.output_dir = strdup(default_output_dir);
     printf("Splitting into \"%s\" directory\n", args.output_dir);
   }
 
@@ -1400,12 +1402,43 @@ int main(int argc, char *argv[]) {
 
   // first pass disassembler on each asm section
   INFO("Running first pass disassembler...\n");
+  
+  int asm_section_count = 0;
+  // Count ASM sections first
+  for (i = 0; i < config.section_count; i++) {
+    if (config.sections[i].type == TYPE_ASM) {
+      asm_section_count++;
+    }
+  }
+  
+  INFO("Found %d ASM sections for disassembly\n", asm_section_count);
+  
+  int processed_count = 0;
   for (i = 0; i < config.section_count; i++) {
     if (config.sections[i].type == TYPE_ASM) {
       unsigned int start = config.sections[i].start;
       unsigned int end = config.sections[i].end;
       unsigned int vaddr = config.sections[i].vaddr;
-      printf("First pass of section:%s\n", config.sections[i].label);
+      
+      processed_count++;
+      
+      // Create a proper label for display
+      char section_display[256];
+      if (config.sections[i].label[0] != '\0') {
+        snprintf(section_display, sizeof(section_display), "%s", config.sections[i].label);
+      } else {
+        snprintf(section_display, sizeof(section_display), "asm_%06X", start);
+      }
+      
+      // Only show verbose output for individual sections at verbosity level 2 or higher
+      if (g_verbosity >= 2) {
+        VERBOSE("  [%d/%d] First pass: %s (0x%06X-0x%06X)\n", 
+                processed_count, asm_section_count, section_display, start, end);
+      } else if (processed_count % 100 == 0 || processed_count == asm_section_count) {
+        // Show progress every 100 sections or at the end
+        INFO("  Progress: %d/%d ASM sections processed\n", processed_count, asm_section_count);
+      }
+      
       if (end <= (unsigned int)len) {
         mipsdisasm_pass1(data, start, end - start, vaddr, state);
       } else {
@@ -1429,7 +1462,7 @@ int main(int argc, char *argv[]) {
     }
   }
   percent = (float)(100 * size) / (float)(len);
-  printf("Total decoded section size:  %X/%lX (%.2f%%) (i.e sections that are "
+  printf("Total decoded section size:  %X/%lX (%.4f%%) (i.e sections that are "
          "not .bin)\n",
          size, len, percent);
   size = 0;

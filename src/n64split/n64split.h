@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -41,9 +42,9 @@
 
 /* Main */
 typedef struct _arg_config {
-  char input_file[FILENAME_MAX];
-  char config_file[FILENAME_MAX];
-  char output_dir[FILENAME_MAX];
+  char *input_file;
+  char *config_file;
+  char *output_dir;
   float model_scale;
   bool raw_texture; // TODO: this should be the default path once n64graphics is
                     // updated
@@ -104,9 +105,8 @@ void write_bin_type(split_section *sec, char *outfilename, char *start_label,
 void split_file(unsigned char *data, unsigned int length, arg_config *args,
                 rom_config *config, disasm_state *state);
 
-void print_usage(void);
-void print_version(void);
 int parse_arguments(int argc, char *argv[], arg_config *config);
+void print_version(void);
 int detect_config_file(unsigned int c1, unsigned int c2, rom_config *config);
 int main(int argc, char *argv[]);
 

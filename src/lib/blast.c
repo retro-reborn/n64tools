@@ -295,10 +295,30 @@ int blast_decode_file(char *in_filename, int type, char *out_filename,
   }
 
   // estimate worst case size
-  out_buf = malloc(100 * in_len);
+  // Use progressive allocation starting with reasonable size
+  long estimated_size = in_len * 10; // Start with 10x instead of 100x
+  if (estimated_size > 8 * MB) {
+    estimated_size = 8 * MB; // Cap at 8MB for safety
+  }
+  
+  out_buf = malloc(estimated_size);
   if (out_buf == NULL) {
-    ret_val = 2;
-    goto free_all;
+    // Try smaller allocations if that fails
+    estimated_size = in_len * 4;
+    if (estimated_size > 4 * MB) estimated_size = 4 * MB;
+    out_buf = malloc(estimated_size);
+    
+    if (out_buf == NULL) {
+      estimated_size = in_len * 2;
+      if (estimated_size > 1 * MB) estimated_size = 1 * MB;
+      out_buf = malloc(estimated_size);
+    }
+    
+    if (out_buf == NULL) {
+      ERROR("Failed to allocate output buffer for blast decompression (needed ~%ld bytes)\n", (long)(in_len * 2));
+      ret_val = 2;
+      goto free_all;
+    }
   }
 
   switch (type) {
@@ -374,7 +394,32 @@ int proc_802A57DC(block_t *a0, unsigned char **copy, unsigned char *rom) {
   int v0 = -1;
 
   len = a0->w4;
-  *copy = malloc(100 * len);
+  
+  // Use progressive allocation instead of massive 100x multiplier
+  long estimated_size = len * 10; // Start with 10x instead of 100x
+  if (estimated_size > 10 * MB) {
+    estimated_size = 10 * MB; // Cap at 10MB for safety
+  }
+  
+  *copy = malloc(estimated_size);
+  if (*copy == NULL) {
+    // Try smaller allocations if that fails
+    estimated_size = len * 5;
+    if (estimated_size > 5 * MB) estimated_size = 5 * MB;
+    *copy = malloc(estimated_size);
+    
+    if (*copy == NULL) {
+      estimated_size = len * 2;
+      if (estimated_size > 1 * MB) estimated_size = 1 * MB;
+      *copy = malloc(estimated_size);
+    }
+    
+    if (*copy == NULL) {
+      ERROR("Failed to allocate blast copy buffer (needed ~%ld bytes)\n", (long)(len * 2));
+      return -1;
+    }
+  }
+  
   src = a0->w0;
 
   type = a0->w8;

@@ -24,6 +24,7 @@
 bin/
 Makefile.generated
 symbols.txt
+*.split/
 
 # IDE
 .vscode/
@@ -33,3 +34,6 @@ symbols.txt
 *.n64
 *.v64
 *.z64
+
+# Test files
+test.*

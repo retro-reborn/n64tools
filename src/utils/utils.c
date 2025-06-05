@@ -110,37 +110,263 @@ void touch_file(const char *filename) {
   }
 }
 
+// Memory management constants for large file handling
+#define CHUNK_SIZE (8 * MB)  // 8MB chunks for better memory management
+#define MAX_CHUNKS 8         // Up to 64 MBs (Maximum size for n64 ROMs)
+
 long read_file(const char *file_name, unsigned char **data) {
   FILE *in;
   unsigned char *in_buf = NULL;
   long file_size;
   long bytes_read;
+  
+  DEBUG("Attempting to read file: %s\n", file_name);
+  
   in = fopen(file_name, "rb");
   if (in == NULL) {
+    ERROR("Failed to open file '%s': %s\n", file_name, strerror(errno));
     return -1;
   }
 
   // allocate buffer to read from offset to end of file
   fseek(in, 0, SEEK_END);
   file_size = ftell(in);
+  
+  DEBUG("File size: %ld bytes\n", file_size);
 
   // sanity check
   if (file_size > 256 * MB) {
+    ERROR("File '%s' is too large (%ld bytes, max: %d MB)\n", file_name, file_size, 256);
+    fclose(in);
     return -2;
   }
-
-  in_buf = malloc(file_size);
-  fseek(in, 0, SEEK_SET);
-
-  // read bytes
-  bytes_read = fread(in_buf, 1, file_size, in);
-  if (bytes_read != file_size) {
+  
+  if (file_size <= 0) {
+    ERROR("File '%s' is empty or invalid (size: %ld)\n", file_name, file_size);
+    fclose(in);
     return -3;
   }
 
-  fclose(in);
-  *data = in_buf;
-  return bytes_read;
+  // For files larger than 8MB, try multiple smaller allocations
+  if (file_size > 8 * MB) {
+    INFO("Large file detected (%ld bytes), using fragmented allocation approach\n", file_size);
+    
+    // Try to allocate in progressively smaller chunks if needed
+    long chunk_sizes[] = {file_size, file_size/2, file_size/4, file_size/8, 8*MB, 4*MB, 2*MB, 1*MB};
+    int num_chunks = sizeof(chunk_sizes) / sizeof(chunk_sizes[0]);
+    
+    in_buf = NULL;
+    for (int attempt = 0; attempt < num_chunks; attempt++) {
+      long attempt_size = chunk_sizes[attempt];
+      if (attempt_size <= 0) continue;
+      
+      INFO("Attempting allocation of %ld bytes (attempt %d)\n", attempt_size, attempt + 1);
+      in_buf = malloc(attempt_size);
+      if (in_buf != NULL) {
+        if (attempt_size >= file_size) {
+          // We got the full size, read directly
+          INFO("Successfully allocated %ld bytes for full file\n", attempt_size);
+          break;
+        } else {
+          // We got a smaller buffer, free it and use true streaming approach
+          free(in_buf);
+          in_buf = NULL;
+          INFO("Using true streaming approach with %ld byte chunks\n", attempt_size);
+          
+          // Allocate an array to hold multiple small chunks
+          long read_chunk_size = attempt_size;
+          int max_chunks_in_memory = 8; // Keep max 8 chunks in memory at once
+          unsigned char **chunk_buffers = calloc(max_chunks_in_memory, sizeof(unsigned char*));
+          long *chunk_sizes = calloc(max_chunks_in_memory, sizeof(long));
+          
+          if (chunk_buffers == NULL || chunk_sizes == NULL) {
+            ERROR("Failed to allocate chunk management arrays\n");
+            if (chunk_buffers) free(chunk_buffers);
+            if (chunk_sizes) free(chunk_sizes);
+            fclose(in);
+            return -4;
+          }
+          
+          // Read file in chunks and immediately try to allocate final buffer
+          fseek(in, 0, SEEK_SET);
+          long total_read = 0;
+          int current_chunk_idx = 0;
+          
+          // First, try to allocate the full buffer one more time
+          in_buf = malloc(file_size);
+          if (in_buf != NULL) {
+            // We got the full buffer! Read directly into it
+            bytes_read = fread(in_buf, 1, file_size, in);
+            if (bytes_read != file_size) {
+              ERROR("Failed to read complete file: read %ld of %ld bytes\n", bytes_read, file_size);
+              free(in_buf);
+              free(chunk_buffers);
+              free(chunk_sizes);
+              fclose(in);
+              return -5;
+            }
+            
+            free(chunk_buffers);
+            free(chunk_sizes);
+            fclose(in);
+            *data = in_buf;
+            INFO("Successfully read %ld bytes after retry allocation\n", bytes_read);
+            return bytes_read;
+          }
+          
+          // Still can't allocate full buffer, use chunked approach
+          while (total_read < file_size) {
+            long remaining = file_size - total_read;
+            long current_chunk_size = (remaining < read_chunk_size) ? remaining : read_chunk_size;
+            
+            // Allocate chunk buffer
+            chunk_buffers[current_chunk_idx] = malloc(current_chunk_size);
+            if (chunk_buffers[current_chunk_idx] == NULL) {
+              ERROR("Failed to allocate chunk buffer of %ld bytes\n", current_chunk_size);
+              // Free any allocated chunks
+              for (int i = 0; i < current_chunk_idx; i++) {
+                if (chunk_buffers[i]) free(chunk_buffers[i]);
+              }
+              free(chunk_buffers);
+              free(chunk_sizes);
+              fclose(in);
+              return -4;
+            }
+            
+            // Read chunk
+            bytes_read = fread(chunk_buffers[current_chunk_idx], 1, current_chunk_size, in);
+            if (bytes_read != current_chunk_size) {
+              ERROR("Failed to read chunk: read %ld of %ld bytes at offset %ld\n", 
+                    bytes_read, current_chunk_size, total_read);
+              // Free chunk buffers
+              for (int i = 0; i <= current_chunk_idx; i++) {
+                if (chunk_buffers[i]) free(chunk_buffers[i]);
+              }
+              free(chunk_buffers);
+              free(chunk_sizes);
+              fclose(in);
+              return -5;
+            }
+            
+            chunk_sizes[current_chunk_idx] = bytes_read;
+            total_read += bytes_read;
+            current_chunk_idx++;
+            
+            DEBUG("Read chunk %d: %ld bytes, total: %ld/%ld\n", 
+                  current_chunk_idx, bytes_read, total_read, file_size);
+            
+            // If we've filled our chunk array or read everything, try to consolidate
+            if (current_chunk_idx >= max_chunks_in_memory || total_read >= file_size) {
+              // Try to allocate final buffer again
+              in_buf = malloc(file_size);
+              if (in_buf != NULL) {
+                // Copy chunks to final buffer
+                long offset = 0;
+                for (int i = 0; i < current_chunk_idx; i++) {
+                  memcpy(in_buf + offset, chunk_buffers[i], chunk_sizes[i]);
+                  offset += chunk_sizes[i];
+                  free(chunk_buffers[i]);
+                  chunk_buffers[i] = NULL;
+                }
+                
+                // Read remaining data directly if any
+                if (total_read < file_size) {
+                  long remaining = file_size - total_read;
+                  bytes_read = fread(in_buf + offset, 1, remaining, in);
+                  if (bytes_read != remaining) {
+                    ERROR("Failed to read remaining data: read %ld of %ld bytes\n", 
+                          bytes_read, remaining);
+                    free(in_buf);
+                    free(chunk_buffers);
+                    free(chunk_sizes);
+                    fclose(in);
+                    return -5;
+                  }
+                  total_read += bytes_read;
+                }
+                
+                free(chunk_buffers);
+                free(chunk_sizes);
+                fclose(in);
+                *data = in_buf;
+                INFO("Successfully read %ld bytes using chunked consolidation\n", total_read);
+                return total_read;
+              }
+              
+              // Still can't allocate, continue with more chunks
+              if (total_read >= file_size) {
+                // We've read everything but can't consolidate - this is a problem
+                ERROR("Read complete file but cannot allocate consolidation buffer\n");
+                for (int i = 0; i < current_chunk_idx; i++) {
+                  if (chunk_buffers[i]) free(chunk_buffers[i]);
+                }
+                free(chunk_buffers);
+                free(chunk_sizes);
+                fclose(in);
+                return -4;
+              }
+            }
+          }
+          
+          ERROR("Reached end of chunked reading without success\n");
+          for (int i = 0; i < current_chunk_idx; i++) {
+            if (chunk_buffers[i]) free(chunk_buffers[i]);
+          }
+          free(chunk_buffers);
+          free(chunk_sizes);
+          fclose(in);
+          return -4;
+        }
+      }
+    }
+    
+    if (in_buf == NULL) {
+      ERROR("Failed to allocate memory for file after trying multiple chunk sizes\n");
+      fclose(in);
+      return -4;
+    }
+    
+    // If we got here, we allocated the full buffer, read the file normally
+    fseek(in, 0, SEEK_SET);
+    bytes_read = fread(in_buf, 1, file_size, in);
+    if (bytes_read != file_size) {
+      ERROR("Failed to read complete file '%s': read %ld of %ld bytes: %s\n", 
+            file_name, bytes_read, file_size, strerror(errno));
+      free(in_buf);
+      fclose(in);
+      return -5;
+    }
+
+    fclose(in);
+    *data = in_buf;
+    INFO("Successfully read %ld bytes from '%s' using full allocation\n", bytes_read, file_name);
+    return bytes_read;
+  } else {
+    // For smaller files, use the original approach
+    in_buf = malloc(file_size);
+    if (in_buf == NULL) {
+      ERROR("Failed to allocate %ld bytes for file '%s': %s\n", file_size, file_name, strerror(errno));
+      fclose(in);
+      return -4;
+    }
+    
+    fseek(in, 0, SEEK_SET);
+
+    // read bytes
+    bytes_read = fread(in_buf, 1, file_size, in);
+    if (bytes_read != file_size) {
+      ERROR("Failed to read complete file '%s': read %ld of %ld bytes: %s\n", 
+            file_name, bytes_read, file_size, strerror(errno));
+      free(in_buf);
+      fclose(in);
+      return -5;
+    }
+
+    fclose(in);
+    *data = in_buf;
+    INFO("Successfully read %ld bytes from '%s'\n", bytes_read, file_name);
+    return bytes_read;
+  }
 }
 
 long write_file(const char *file_name, unsigned char *data, long length) {

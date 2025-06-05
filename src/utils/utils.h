@@ -1,6 +1,7 @@
 #ifndef UTILS_H_
 #define UTILS_H_
 
+#include <errno.h>
 #include <stdio.h>
 
 // defines
@@ -87,13 +88,25 @@ extern int g_verbosity;
 #define COLOR_RESET   "\033[0m"
 
 #define ERROR(...) fprintf(stderr, COLOR_RED "[ERROR] " COLOR_RESET __VA_ARGS__)
+#define WARNING(...) fprintf(stderr, COLOR_YELLOW "[WARNING] " COLOR_RESET __VA_ARGS__)
 #define INFO(...)                                                              \
-  if (g_verbosity)                                                             \
+  if (g_verbosity >= 1)                                                        \
   printf(COLOR_CYAN "[INFO] " COLOR_RESET __VA_ARGS__)
+#define DEBUG(...)                                                             \
+  if (g_verbosity >= 2)                                                        \
+  printf(COLOR_BLUE "[DEBUG] " COLOR_RESET __VA_ARGS__)
+#define VERBOSE(...)                                                           \
+  if (g_verbosity >= 3)                                                        \
+  printf(COLOR_MAGENTA "[VERBOSE] " COLOR_RESET __VA_ARGS__)
 #define INFO_HEX(...)                                                          \
-  if (g_verbosity) {                                                           \
-    printf(COLOR_CYAN "[INFO] " COLOR_RESET);                                   \
-    print_hex(__VA_ARGS__);                                                   \
+  if (g_verbosity >= 1) {                                                      \
+    printf(COLOR_CYAN "[INFO] " COLOR_RESET);                                  \
+    print_hex(__VA_ARGS__);                                                    \
+  }
+#define DEBUG_HEX(...)                                                         \
+  if (g_verbosity >= 2) {                                                      \
+    printf(COLOR_BLUE "[DEBUG] " COLOR_RESET);                                 \
+    print_hex(__VA_ARGS__);                                                    \
   }
 
 // functions
