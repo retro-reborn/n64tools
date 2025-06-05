@@ -57,6 +57,7 @@ description = "N64 ROM checksum calculator"
 [projects.n64convert]
 build_type = "lib_link"
 sources = ["src/n64convert/n64convert.c", "$utils"]
+description = "N64 ROM format converter"
 
 [projects.n64symbols]
 build_type = "lib_link"
